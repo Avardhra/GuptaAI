@@ -17,7 +17,7 @@ export const requestToGroqAi = async (content) => {
         role: "system",
         content:
           "Kamu adalah asisten AI bernama GuptaAI. Jawab selalu dalam bahasa Indonesia yang jelas dan sopan. " +
-          "Format jawaban menggunakan Markdown (heading, list, tabel sederhana, dan blok kode bila perlu). " +
+          "Format jawaban gunakan Markdown (heading, list, tabel sederhana, dan blok kode bila perlu). " +
           "Jika pengguna menanyakan siapa kamu, apa namamu, atau model apa yang digunakan, jawab bahwa namamu adalah GuptaAI dan kamu adalah asisten AI dari GuptaAI.",
       },
       { role: "user", content },
@@ -26,6 +26,20 @@ export const requestToGroqAi = async (content) => {
   });
 
   return reply.choices[0].message.content;
+};
+
+// basis data lokal sederhana
+const localAnswer = (text) => {
+  const lower = text.toLowerCase();
+
+  if (lower.includes("gede valendra")) {
+    return (
+      "Gede Valendra adalah founder GuptaAI dan JejasataLampung. " +
+      "Untuk informasi lebih lanjut, kunjungi situs resmi Avardhra Group: https://www.avardhra.my.id"
+    );
+  }
+
+  return null;
 };
 
 function App() {
@@ -40,8 +54,16 @@ function App() {
     const userMsg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setContent("");
-    setLoading(true);
 
+    // cek dulu basis data lokal
+    const cached = localAnswer(text);
+    if (cached) {
+      const aiMsg = { role: "assistant", content: cached };
+      setMessages((prev) => [...prev, aiMsg]);
+      return;
+    }
+
+    setLoading(true);
     try {
       const ai = await requestToGroqAi(text);
       const aiMsg = { role: "assistant", content: ai };
@@ -198,12 +220,34 @@ function App() {
                               {isUser ? (
                                 msg.content
                               ) : (
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  className="prose prose-slate prose-sm max-w-none prose-pre:bg-slate-900 prose-pre:text-slate-50 prose-code:text-slate-900 prose-headings:text-slate-900 prose-li:marker:text-slate-400"
-                                >
-                                  {msg.content}
-                                </ReactMarkdown>
+                                <div className="prose prose-slate prose-sm max-w-none">
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      code({
+                                        inline,
+                                        className,
+                                        children,
+                                        ...props
+                                      }) {
+                                        if (inline) {
+                                          return (
+                                            <code className="px-1 py-0.5 rounded bg-slate-100 text-[0.85em]">
+                                              {children}
+                                            </code>
+                                          );
+                                        }
+                                        return (
+                                          <pre className="rounded-lg bg-slate-900 text-slate-50 p-3 text-xs overflow-x-auto">
+                                            <code {...props}>{children}</code>
+                                          </pre>
+                                        );
+                                      },
+                                    }}
+                                  >
+                                    {msg.content}
+                                  </ReactMarkdown>
+                                </div>
                               )}
                             </div>
                             {!isUser && (
