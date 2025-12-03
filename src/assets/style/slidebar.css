@@ -1,0 +1,122 @@
+.avd-slidebar {
+    z-index: 999;
+    left: -120%;
+    top: 0;
+    height: 100%;
+    position: fixed;
+    transition: 0.4s ease;
+}
+
+.avd-slidebar:target {
+left: 0%;
+}
+
+.box-slidebar {
+    position: relative;
+    max-width: 40vh;
+    min-width: 30vh;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.267);
+    background-color: white;
+}
+
+.head-slide {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.head-slide img {
+    width: 25vh;
+}
+
+.head-slide li {
+    list-style: none;
+    display: flex;
+    align-items: center;
+}
+
+.head-slide li label {}
+
+.head-slide li i {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: black;
+    border-radius: 50%;
+    color: white;
+    position: absolute;
+    margin-left: 5px;
+    width: 4vh;
+    height: 4vh;
+}
+
+.head-slide li input {
+    position: relative;
+    outline: 0.5px solid rgba(0, 0, 0, 0.831);
+    background-color: transparent;
+    padding: 8px 30px;
+    padding-left: 40px;
+    border-radius: 50px;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 100;
+}
+
+.avd-options {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    text-align: left;
+    margin: 20px 0px;
+}
+
+.avd-options li {
+    position: relative;
+    list-style: none;
+    width: 100%;
+    height: fit-content;
+    margin: 10px 0px;
+    padding: 0;
+}
+
+.avd-options li a {
+    padding: 16px 20px;
+    font-size: 14px;
+    font-weight: 100;
+    position: relative;
+    display: flex;
+    width: 90%;
+    border-top-right-radius: 25px;
+    border-bottom-right-radius: 25px;
+    border-left: 4px solid transparent;
+    transition: 0.2s ease;
+}
+
+.avd-options li a:hover {
+    background-color: rgba(0, 0, 0, 0.050);
+    border-left: 4px solid black;
+}
+
+
+
+.box-logout {
+    display: flex;
+    justify-content: center;
+    width: 40vh;
+    position: fixed;
+    bottom: 0;
+    background-color: aqua;
+}
+
+.box-logout a {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    background-color: black;
+    color: white;
+    padding: 15px;
+}

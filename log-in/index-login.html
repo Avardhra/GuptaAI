@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="stylesheet" href="../icon/Boxicons/css/boxicons.min.css">
+    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        .avd-nothing {
+            z-index: 1000;
+
+            position: absolute;
+            transition: 0.5s ease;
+        }
+
+        .avd-box-noth {
+            background-color: white;
+            position: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .box {
+            position: absolute;
+            padding: 10px;
+            border-radius: 50%;
+            opacity: 0;
+        }
+
+        .annony1 {
+            background-color: #000000;
+
+            animation: role 4s ease infinite;
+        }
+
+        @keyframes role {
+            0% {
+                width: 5px;
+                height: 5px;
+                scale: 0.4;
+                rotate: 0deg;
+            }
+
+            50% {
+                rotate: 360deg;
+                scale: 1;
+                width: 40px;
+                height: 5px;
+                border-top-right-radius: 200px;
+                border-bottom-left-radius: 200px;
+                opacity: 1;
+            }
+
+            100% {
+                width: 5px;
+                height: 5px;
+                scale: 0.4;
+                rotate: 0deg;
+            }
+        }
+
+        .annony2 {
+            background-color: #0000008d;
+            animation: role2 4s ease infinite;
+            animation-delay: 0.15s;
+        }
+
+        @keyframes role2 {
+            0% {
+                scale: 0.4;
+                rotate: 0deg;
+                width: 5px;
+                height: 5px;
+            }
+
+            50% {
+                rotate: 360deg;
+                scale: 1;
+                width: 40px;
+                height: 5px;
+                border-top-right-radius: 200px;
+                border-bottom-left-radius: 200px;
+                opacity: 1;
+            }
+
+            100% {
+                width: 5px;
+                height: 5px;
+                scale: 0.4;
+                rotate: 0deg;
+            }
+        }
+
+        .annony3 {
+            background-color: #00000052;
+            animation: role3 4s ease infinite;
+            animation-delay: 0.24s;
+        }
+
+        @keyframes role3 {
+            0% {
+                scale: 0.4;
+                rotate: 0deg;
+                width: 5px;
+                height: 5px;
+            }
+
+            50% {
+                rotate: 360deg;
+                scale: 1;
+                width: 40px;
+                height: 5px;
+                border-top-right-radius: 200px;
+                border-bottom-left-radius: 200px;
+                opacity: 1;
+            }
+
+            100% {
+                width: 5px;
+                height: 5px;
+                scale: 0.4;
+                rotate: 0deg;
+            }
+        }
+
+        .annony4 {
+            background-color: #0000003a;
+            animation: role4 4s ease infinite;
+            animation-delay: 0.3s;
+        }
+
+        @keyframes role4 {
+            0% {
+                scale: 0.4;
+                rotate: 0deg;
+                width: 5px;
+                height: 5px;
+            }
+
+            50% {
+                rotate: 360deg;
+                scale: 1;
+                width: 40px;
+                height: 5px;
+                border-top-right-radius: 100px;
+                border-bottom-left-radius: 100px;
+                opacity: 1;
+            }
+
+            100% {
+                width: 5px;
+                height: 5px;
+                scale: 0.4;
+                rotate: 0deg;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="avd-nothing" id="loading_page">
+        <div class="avd-box-noth">
+            <div class="box annony1">
+            </div>
+            <div class="box annony2">
+            </div>
+            <div class="box annony3">
+            </div>
+            <div class="box annony4">
+            </div>
+        </div>
+    </div>
+    <div class="avd-login">
+        <div class="avd-box-login">
+            <div class="box-header">
+                <h1>LOGIN</h1>
+            </div>
+            <div class="avd-login-input">
+                <li>
+                    <i class="bx bxl-gmail"></i>
+                    <input type="text" required>
+                    <label>Email</label>
+                </li>
+                <li>
+                    <i class="bx bxs-key"></i>
+                    <input type="password" required>
+                    <label>Password</label>
+                </li>
+                <ul>
+                    <center>
+                    </center>
+                </ul>
+                <hr style="width: 100%; opacity:0.2; margin:10px; border:none; height:1px; background-color:black;">
+                <li><button type="submit">MASUK</button></li>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        setTimeout(function () {
+            document.getElementById("loading_page").style.cssText = "display:none; opacity:0;"
+
+        }, 4000);
+    });
+</script>
+
+</html>
