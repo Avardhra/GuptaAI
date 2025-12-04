@@ -29,7 +29,7 @@ const MODEL_OPTIONS = [
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
-// hanya kirim field yang didukung API
+// ====== UTIL GUPTA AI ======
 export const requestToGroqAi = async (content, model, history) => {
   const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
 
@@ -92,8 +92,7 @@ function App() {
   const [user, setUser] = useState(null); // {name, email}
   const [showLogin, setShowLogin] = useState(false);
   const [loginMode, setLoginMode] = useState("login"); // 'login' | 'signup'
-  const [showProfile, setShowProfile] = useState(false);
-
+  const [showSidebar, setShowSidebar] = useState(false); // sidebar kanan (panel)
   // model AI
   const [model, setModel] = useState(MODEL_OPTIONS[0].value);
 
@@ -110,92 +109,110 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
 
+  // per-tab session id (supaya tiap tab punya sesi sendiri)
+  const [sessionId] = useState(() => {
+    const existing = sessionStorage.getItem("gupta_session_id");
+    if (existing) return existing;
+    const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem("gupta_session_id", id);
+    return id;
+  });
+
   // ref auto-clear & scroll
   const autoClearTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const storageKeyFor = (email) => `gupta_chat_history_${email || "guest"}`;
+  const sessionKeyFor = (email) =>
+    `gupta_chat_session_${email || "guest"}_${sessionId}`;
 
-  // load messages lokal ketika user berubah
-  useEffect(() => {
-    try {
-      const key = storageKeyFor(user?.email);
-      const stored = localStorage.getItem(key);
-      if (stored && (!messages || messages.length === 0)) {
-        setMessages(JSON.parse(stored));
-      }
-    } catch (e) {
-      console.error("Failed to load messages for user", e);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  // simpan messages ke localStorage + backend
-  useEffect(() => {
-    try {
-      const email = user?.email || "guest";
-      const key = storageKeyFor(email);
-      if (messages && messages.length > 0) {
-        localStorage.setItem(key, JSON.stringify(messages));
-
-        fetch("http://localhost:4000/api/history", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, messages }),
-        }).catch((err) => {
-          console.error("Failed to save history to backend", err);
-        });
-      }
-    } catch (e) {
-      console.error("Failed to save chat history", e);
-    }
-  }, [messages, user]);
-
-  // load history dari backend ketika user berubah
-  useEffect(() => {
-    const email = user?.email || "guest";
-
-    fetch(`http://localhost:4000/api/history?email=${encodeURIComponent(email)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setMessages(data);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load history from backend", err);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  // init user & model dari localStorage pertama kali
+  // ============ INIT USER & MODEL ============
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("gupta_user");
       const storedModel = localStorage.getItem("gupta_model");
       if (storedUser) setUser(JSON.parse(storedUser));
       if (storedModel) setModel(storedModel);
-      if (!storedUser) {
-        const guestKey = storageKeyFor("guest");
-        const guestStored = localStorage.getItem(guestKey);
-        if (guestStored && (!messages || messages.length === 0)) {
-          setMessages(JSON.parse(guestStored));
-        }
-      }
     } catch (e) {
       console.error("Failed to initialize from localStorage", e);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // visibility API
+  // ============ LOAD MESSAGES KETIKA USER BERUBAH ============
+  useEffect(() => {
+    try {
+      const email = user?.email || "guest";
+      // 1. coba load session khusus tab
+      const sessionKey = sessionKeyFor(email);
+      const sessionStored = sessionStorage.getItem(sessionKey);
+      if (sessionStored) {
+        setMessages(JSON.parse(sessionStored));
+        return;
+      }
+      // 2. fallback ke history umum user
+      const key = storageKeyFor(email);
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        setMessages(JSON.parse(stored));
+      } else {
+        setMessages([]);
+      }
+    } catch (e) {
+      console.error("Failed to load messages for user", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionId]);
+
+  // ============ SIMPAN MESSAGES KE localStorage + sessionStorage ============
+  useEffect(() => {
+    try {
+      const email = user?.email || "guest";
+      const key = storageKeyFor(email);
+      const sessionKey = sessionKeyFor(email);
+
+      if (messages && messages.length > 0) {
+        // simpan versi "archive" (global user)
+        localStorage.setItem(key, JSON.stringify(messages));
+        // simpan versi sesi tab
+        sessionStorage.setItem(sessionKey, JSON.stringify(messages));
+      } else {
+        // kalau kosong, jangan hapus archive, tapi kosongkan session
+        sessionStorage.removeItem(sessionKey);
+      }
+    } catch (e) {
+      console.error("Failed to save chat history", e);
+    }
+  }, [messages, user, sessionId]);
+
+  // ============ AUTO-BACKUP SAAT TAB DITUTUP ============
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      try {
+        const email = user?.email || "guest";
+        const key = storageKeyFor(email);
+        if (messages && messages.length > 0) {
+          localStorage.setItem(key, JSON.stringify(messages));
+        }
+      } catch (e) {
+        console.error("Failed to backup before unload", e);
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, user]);
+
+  // ============ VISIBILITY: CLEAR SESSION PER TAB ============
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
         if (autoClearTimeoutRef.current) clearTimeout(autoClearTimeoutRef.current);
         autoClearTimeoutRef.current = setTimeout(() => {
           try {
-            const key = storageKeyFor(user?.email);
+            const email = user?.email || "guest";
+            const key = storageKeyFor(email);
+            // pastikan archive terbaru
             if (messages && messages.length > 0) {
               localStorage.setItem(key, JSON.stringify(messages));
               setHistoryList(JSON.parse(JSON.stringify(messages)));
@@ -203,9 +220,12 @@ function App() {
           } catch (e) {
             console.error("Failed to backup messages before auto-clear", e);
           }
+          // clear hanya session tab ini
           setMessages([]);
+          const sessionKey = sessionKeyFor(user?.email);
+          sessionStorage.removeItem(sessionKey);
           autoClearTimeoutRef.current = null;
-        }, 120000);
+        }, 120000); // 2 menit
       } else {
         if (autoClearTimeoutRef.current) {
           clearTimeout(autoClearTimeoutRef.current);
@@ -220,9 +240,9 @@ function App() {
       if (autoClearTimeoutRef.current) clearTimeout(autoClearTimeoutRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, user]);
+  }, [messages, user, sessionId]);
 
-  // auto scroll
+  // ============ AUTO SCROLL ============
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -358,7 +378,6 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-    setShowProfile(false);
     try {
       localStorage.removeItem("gupta_user");
     } catch (e) {
@@ -366,7 +385,7 @@ function App() {
     }
   };
 
-  // signup + login
+  // signup + login (API via fetch, ganti URL ke endpoint serverless kamu)
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
@@ -378,10 +397,10 @@ function App() {
     try {
       let url, body;
       if (loginMode === "signup") {
-        url = "http://localhost:4000/api/signup";
+        url = "/api/signup"; // ganti ke endpoint vercel / serverless kamu
         body = { name, email, password };
       } else {
-        url = "http://localhost:4000/api/login";
+        url = "/api/login";
         body = { email, password };
       }
 
@@ -431,11 +450,12 @@ function App() {
       setHistoryList([]);
       setMessages([]);
 
-      fetch(`http://localhost:4000/api/history?email=${encodeURIComponent(email)}`, {
-        method: "DELETE",
-      }).catch((err) => {
-        console.error("Failed to clear history in backend", err);
-      });
+      // kalau punya backend history, disini bisa panggil API DELETE
+      // fetch(`/api/history?email=${encodeURIComponent(email)}`, {
+      //   method: "DELETE",
+      // }).catch((err) => {
+      //   console.error("Failed to clear history in backend", err);
+      // });
     } catch (e) {
       console.error("Failed to clear archived history", e);
     }
@@ -451,7 +471,7 @@ function App() {
               {loginMode === "login" ? "Masuk ke GuptaAI" : "Daftar Akun GuptaAI"}
             </h2>
             <p className="text-xs text-slate-500 mb-4">
-              Data login disimpan di server lokal (folder dataLogin) dan di browser kamu.
+              Data login disimpan di server melalui API dan di browser kamu.
             </p>
 
             <div className="flex mb-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px]">
@@ -482,7 +502,9 @@ function App() {
             <form onSubmit={handleAuthSubmit} className="space-y-3">
               {loginMode === "signup" && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Nama</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Nama
+                  </label>
                   <input
                     name="name"
                     type="text"
@@ -493,7 +515,9 @@ function App() {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Email
+                </label>
                 <input
                   name="email"
                   type="email"
@@ -503,7 +527,9 @@ function App() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Password</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Password
+                </label>
                 <input
                   name="password"
                   type="password"
@@ -587,6 +613,7 @@ function App() {
       <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
+            
             <div className="relative">
               <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
                 G
@@ -608,44 +635,24 @@ function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Icon bar untuk buka sidebar */}
             <button
               type="button"
-              onClick={shareConversation}
-              className="hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-100"
+              onClick={() => setShowSidebar(true)}
+              className="mr-1 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             >
-              Bagikan
+              <i className="bx bx-menu text-xl" />
             </button>
-
-            {user ? (
-              <button
-                type="button"
-                onClick={() => setShowProfile(true)}
-                className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-200"
-              >
-                <span className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">
-                  {user.name.charAt(0).toUpperCase()}
-                </span>
-                <span className="hidden sm:inline max-w-[120px] truncate">{user.name}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowLogin(true)}
-                className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
-              >
-                Masuk / Daftar
-              </button>
-            )}
           </div>
         </div>
       </header>
 
-      {/* RIGHT SIDEBAR */}
-      {showProfile && (
+      {/* RIGHT SIDEBAR / PANEL */}
+      {showSidebar && (
         <div className="fixed inset-0 z-40 flex justify-end">
           <div
             className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-100"
-            onClick={() => setShowProfile(false)}
+            onClick={() => setShowSidebar(false)}
           />
           <aside
             className="
@@ -656,7 +663,7 @@ function App() {
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900">Panel GuptaAI</h2>
               <button
-                onClick={() => setShowProfile(false)}
+                onClick={() => setShowSidebar(false)}
                 className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
               >
                 Tutup
@@ -664,17 +671,21 @@ function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {/* LOGIN / PROFILE SECTION */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 mb-2">Profil</h3>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Akun</h3>
                 {user ? (
                   <div className="space-y-1 text-sm text-slate-700">
-                    <p>
-                      <span className="font-medium">Nama:</span> {user.name}
-                    </p>
-                    <p>
-                      <span className="font-medium">Email:</span> {user.email}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-semibold shadow-sm">
+                        {user.name?.charAt(0).toUpperCase()}
+                      </span>
+                      <div>
+                        <p className="font-medium">{user.name}</p>
+                        <p className="text-[11px] text-slate-500">{user.email}</p>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
                       Riwayat chat tersimpan di perangkat ini berdasarkan email.
                     </p>
                     <button
@@ -686,12 +697,40 @@ function App() {
                     </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">
-                    Kamu belum login. Klik tombol &quot;Masuk / Daftar&quot; di header.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500">
+                      Kamu belum login. Masuk atau daftar untuk menyimpan riwayat per email.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode("login");
+                        setShowLogin(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                    >
+                      <i className="bx bx-log-in text-sm" />
+                      Masuk
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode("signup");
+                        setShowLogin(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      <i className="bx bx-user-plus text-sm" />
+                      Daftar
+                    </button>
+                    <p className="text-[11px] text-slate-400">
+                      Jika tidak login, riwayat akan tersimpan sebagai guest.
+                    </p>
+                  </div>
                 )}
               </section>
 
+              {/* MODEL SECTION */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
                 <select
@@ -713,6 +752,7 @@ function App() {
                 </p>
               </section>
 
+              {/* HISTORY SECTION */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
                 <div className="flex items-center gap-2">
@@ -730,7 +770,8 @@ function App() {
                   </button>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Riwayat disimpan per email (atau guest) di localStorage & backend.
+                  Riwayat disimpan per email (atau guest) di localStorage. Tiap tab punya sesi
+                  sendiri, tapi archive tetap tersimpan.
                 </p>
               </section>
             </div>
