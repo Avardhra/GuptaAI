@@ -1,4 +1,4 @@
-// App.jsx (full, fixed Groq 400 "property 'time' is unsupported")
+// App.jsx
 import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
@@ -8,7 +8,7 @@ const GUPTA_API = import.meta.env.VITE_AVARDHRA;
 
 const groq = new Groq({
   apiKey: GUPTA_API,
-  dangerouslyAllowBrowser: true, // produksi: lebih aman lewat backend
+  dangerouslyAllowBrowser: true,
 });
 
 const MODEL_OPTIONS = [
@@ -30,11 +30,10 @@ const MODEL_OPTIONS = [
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
-// HANYA kirim field yang didukung API (role, content)
+// hanya kirim field yang didukung API (role, content)
 export const requestToGroqAi = async (content, model, history) => {
   const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
 
-  // buang field non-standar seperti time sebelum dikirim
   const cleanedHistory = (history || []).map((m) => ({
     role: m.role,
     content: m.content,
@@ -93,7 +92,7 @@ function App() {
   // login & profile
   const [user, setUser] = useState(null); // {name, email}
   const [showLogin, setShowLogin] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [showProfile, setShowProfile] = useState(false); // sekarang = sidebar kanan
 
   // model AI
   const [model, setModel] = useState(MODEL_OPTIONS[0].value);
@@ -104,28 +103,26 @@ function App() {
   const [loading, setLoading] = useState(false);
 
   // file/audio
-  const [attachedFile, setAttachedFile] = useState(null); // File | null
+  const [attachedFile, setAttachedFile] = useState(null);
   const [attachedType, setAttachedType] = useState(null); // 'audio' | 'file' | null
 
   // history modal
   const [showHistory, setShowHistory] = useState(false);
-  const [historyList, setHistoryList] = useState([]); // loaded from storage
+  const [historyList, setHistoryList] = useState([]);
 
-  // ref to auto-clear timeout & visibility state
+  // ref auto-clear
   const autoClearTimeoutRef = useRef(null);
 
-  // --- Helpers for storage keys per account ---
+  // helper key localStorage
   const storageKeyFor = (email) => `gupta_chat_history_${email || "guest"}`;
 
-  // --- Load messages for current user on mount and when user changes ---
+  // load messages lokal ketika user berubah
   useEffect(() => {
     try {
       const key = storageKeyFor(user?.email);
       const stored = localStorage.getItem(key);
-      if (stored) {
-        if (!messages || messages.length === 0) {
-          setMessages(JSON.parse(stored));
-        }
+      if (stored && (!messages || messages.length === 0)) {
+        setMessages(JSON.parse(stored));
       }
     } catch (e) {
       console.error("Failed to load messages for user", e);
@@ -133,19 +130,47 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // --- Save messages to per-user storage whenever messages change ---
+  // simpan messages ke localStorage + backend
   useEffect(() => {
     try {
-      const key = storageKeyFor(user?.email);
+      const email = user?.email || "guest";
+      const key = storageKeyFor(email);
       if (messages && messages.length > 0) {
+        // lokal
         localStorage.setItem(key, JSON.stringify(messages));
+
+        // backend
+        fetch("http://localhost:4000/api/history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, messages }),
+        }).catch((err) => {
+          console.error("Failed to save history to backend", err);
+        });
       }
     } catch (e) {
       console.error("Failed to save chat history", e);
     }
   }, [messages, user]);
 
-  // --- Load model & local user info (guest) on first mount ---
+  // load history dari backend ketika user berubah
+  useEffect(() => {
+    const email = user?.email || "guest";
+
+    fetch(`http://localhost:4000/api/history?email=${encodeURIComponent(email)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setMessages(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load history from backend", err);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // init user & model dari localStorage pertama kali
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("gupta_user");
@@ -165,7 +190,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Visibility API: when tab hidden start timer; when visible cancel ---
+  // visibility API
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
@@ -199,7 +224,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, user]);
 
-  // --- Handlers untuk file ---
+  // file handler
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -213,13 +238,13 @@ function App() {
     setAttachedType(null);
   };
 
-  // --- Sending messages / AI interaction ---
+  // kirim pesan
   const sendMessage = async () => {
     if (loading) return;
 
     let text = content.trim();
 
-    // jika ada audio, transcribe dulu
+    // audio → whisper
     if (attachedFile && attachedType === "audio") {
       setLoading(true);
       try {
@@ -244,6 +269,7 @@ function App() {
       }
     }
 
+    // file biasa
     if (attachedFile && attachedType === "file") {
       const fileInfo = `\n\n[File terlampir: ${attachedFile.name} (${attachedFile.type || "unknown"})]`;
       text = text ? text + fileInfo : fileInfo;
@@ -252,7 +278,6 @@ function App() {
 
     if (!text) return;
 
-    // user message with timestamp (boleh ada time di state)
     const userMsg = { role: "user", content: text, time: Date.now() };
     setMessages((prev) => [...prev, userMsg]);
     setContent("");
@@ -266,7 +291,6 @@ function App() {
 
     setLoading(true);
     try {
-      // ambil snapshot history untuk API
       const historyForApi = [...messages, userMsg];
       const ai = await requestToGroqAi(text, model, historyForApi);
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
@@ -296,33 +320,41 @@ function App() {
     }
   };
 
-  // --- Simple login (client-side only) ---
-  const handleLoginSubmit = (e) => {
+  const handleLogout = () => {
+    setUser(null);
+    setShowProfile(false);
+    try {
+      localStorage.removeItem("gupta_user");
+    } catch (e) {
+      console.error("Failed to clear user from localStorage", e);
+    }
+  };
+
+  // login
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
     const name = form.name.value.trim();
     const email = form.email.value.trim();
     if (!name || !email) return;
+
     const newUser = { name, email };
     setUser(newUser);
     localStorage.setItem("gupta_user", JSON.stringify(newUser));
     setShowLogin(false);
 
     try {
-      const key = storageKeyFor(email);
-      const stored = localStorage.getItem(key);
-      if (stored) setHistoryList(JSON.parse(stored));
+      await fetch("http://localhost:4000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      });
     } catch (err) {
-      console.error("Failed to load user history after login", err);
+      console.error("Failed to log login to backend", err);
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setShowProfile(false);
-  };
-
-  // --- Open history modal & load archived history ---
+  // buka history modal (pakai lokal)
   const openHistory = () => {
     try {
       const key = storageKeyFor(user?.email);
@@ -339,7 +371,6 @@ function App() {
     setShowHistory(true);
   };
 
-  // Optional: allow clearing archived history for account
   const clearArchivedHistory = () => {
     try {
       const key = storageKeyFor(user?.email);
@@ -453,156 +484,159 @@ function App() {
       )}
 
       {/* HEADER */}
-     <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-  <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
-    {/* Kiri: info GuptaAI */}
-    <div className="flex items-center gap-3">
-      <div className="relative">
-        <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
-          G
-        </div>
-        <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 shadow">
-          AI
-        </span>
-      </div>
-      <div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold text-slate-900">GuptaAI</span>
-          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-100">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1" />
-            Online
-          </span>
-        </div>
-        <p className="text-xs text-slate-500">Asisten AI dari Avardhra Group</p>
-      </div>
-    </div>
+      <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+          {/* kiri: info GuptaAI */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
+                G
+              </div>
+              <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 shadow">
+                AI
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-slate-900">GuptaAI</span>
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-100">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1" />
+                  Online
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">Asisten AI dari Avardhra Group</p>
+            </div>
+          </div>
 
-    {/* Kanan: hanya profil / login, buka sidebar */}
-    <div className="flex items-center gap-2">
-      {user ? (
-        <button
-          type="button"
-          onClick={() => setShowProfile(true)} // sekarang buka sidebar
-          className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-200"
-        >
-          <span className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">
-            {user.name.charAt(0).toUpperCase()}
-          </span>
-          <span className="hidden sm:inline max-w-[120px] truncate">{user.name}</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowLogin(true)}
-          className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
-        >
-          Masuk
-        </button>
-      )}
-    </div>
-  </div>
-</header>
-{/*  */}
-{/* RIGHT SIDEBAR */}
-{showProfile && (
-  <div className="fixed inset-0 z-40 flex justify-end">
-    {/* overlay dengan fade */}
-    <div
-      className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-100"
-      onClick={() => setShowProfile(false)}
-    />
-    {/* panel geser dari kanan */}
-    <aside
-      className="
-        w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
-        transform transition-transform duration-300 ease-out translate-x-0
-      "
-    >
-      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">Panel GuptaAI</h2>
-        <button
-          onClick={() => setShowProfile(false)}
-          className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
-        >
-          Tutup
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Section: Profil */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 mb-2">Profil</h3>
-          {user ? (
-            <div className="space-y-1 text-sm text-slate-700">
-              <p>
-                <span className="font-medium">Nama:</span> {user.name}
-              </p>
-              <p>
-                <span className="font-medium">Email:</span> {user.email}
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Riwayat chat tersimpan di perangkat ini berdasarkan email.
-              </p>
+          {/* kanan: profil / login */}
+          <div className="flex items-center gap-2">
+            {user ? (
               <button
                 type="button"
-                onClick={handleLogout}
-                className="mt-3 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-rose-600 text-white hover:bg-rose-500"
+                onClick={() => setShowProfile(true)}
+                className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-200"
               >
-                Keluar
+                <span className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">
+                  {user.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="hidden sm:inline max-w-[120px] truncate">{user.name}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowLogin(true)}
+                className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
+              >
+                Masuk
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* RIGHT SIDEBAR: profil, model, riwayat */}
+      {showProfile && (
+        <div className="fixed inset-0 z-40 flex justify-end">
+          {/* overlay */}
+          <div
+            className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-100"
+            onClick={() => setShowProfile(false)}
+          />
+          {/* panel geser */}
+          <aside
+            className="
+              w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
+              transform transition-transform duration-300 ease-out translate-x-0
+            "
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">Panel GuptaAI</h2>
+              <button
+                onClick={() => setShowProfile(false)}
+                className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Tutup
               </button>
             </div>
-          ) : (
-            <p className="text-xs text-slate-500">
-              Kamu belum login. Klik tombol &quot;Masuk&quot; di header untuk login.
-            </p>
-          )}
-        </section>
 
-        {/* Section: Pilihan model */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
-          >
-            {MODEL_OPTIONS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Pilih model AI yang ingin digunakan untuk percakapan.
-          </p>
-        </section>
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {/* Profil */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Profil</h3>
+                {user ? (
+                  <div className="space-y-1 text-sm text-slate-700">
+                    <p>
+                      <span className="font-medium">Nama:</span> {user.name}
+                    </p>
+                    <p>
+                      <span className="font-medium">Email:</span> {user.email}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Riwayat chat tersimpan di perangkat ini berdasarkan email.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="mt-3 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-rose-600 text-white hover:bg-rose-500"
+                    >
+                      Keluar
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Kamu belum login. Klik tombol &quot;Masuk&quot; di header untuk login.
+                  </p>
+                )}
+              </section>
 
-        {/* Section: Riwayat */}
-        <section>
-          <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={openHistory}
-              className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] hover:bg-slate-800"
-            >
-              Buka Riwayat
-            </button>
-            <button
-              onClick={clearArchivedHistory}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] text-rose-600 hover:bg-rose-50"
-            >
-              Hapus
-            </button>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Riwayat disimpan per email (atau guest) di localStorage.
-          </p>
-        </section>
-      </div>
-    </aside>
-  </div>
-)}
+              {/* Model AI */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
+                <select
+                  value={model}
+                  onChange={(e) => {
+                    setModel(e.target.value);
+                    localStorage.setItem("gupta_model", e.target.value);
+                  }}
+                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+                >
+                  {MODEL_OPTIONS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Pilih model AI yang ingin digunakan untuk percakapan.
+                </p>
+              </section>
 
+              {/* Riwayat */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openHistory}
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] hover:bg-slate-800"
+                  >
+                    Buka Riwayat
+                  </button>
+                  <button
+                    onClick={clearArchivedHistory}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] text-rose-600 hover:bg-rose-50"
+                  >
+                    Hapus
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Riwayat disimpan per email (atau guest) di localStorage, dan disinkronkan ke
+                  server.
+                </p>
+              </section>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* INPUT FOOTER */}
       <form
