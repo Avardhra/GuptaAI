@@ -224,7 +224,7 @@ const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
           const sessionKey = sessionKeyFor(user?.email);
           sessionStorage.removeItem(sessionKey);
           autoClearTimeoutRef.current = null;
-        }, 120000); // 2 menit
+        }, 100); // 2 menit
       } else {
         if (autoClearTimeoutRef.current) {
           clearTimeout(autoClearTimeoutRef.current);
