@@ -108,7 +108,7 @@ function App() {
   // history modal
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
-
+const [modelOpen, setModelOpen] = useState(false);
   // per-tab session id (supaya tiap tab punya sesi sendiri)
   const [sessionId] = useState(() => {
     const existing = sessionStorage.getItem("gupta_session_id");
@@ -465,8 +465,8 @@ function App() {
     <div className="h-screen bg-slate-100">
       {/* LOGIN / SIGNUP MODAL */}
       {showLogin && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white px-5 mx-6 rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-1">
               {loginMode === "login" ? "Masuk ke GuptaAI" : "Daftar Akun GuptaAI"}
             </h2>
@@ -651,17 +651,18 @@ function App() {
       {showSidebar && (
         <div className="fixed inset-0 z-40 flex justify-end">
           <div
-            className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-100"
+            className="flex-1 bg-black/30 backdrop-blur-xs transition-opacity duration-300 ease-out opacity-100"
             onClick={() => setShowSidebar(false)}
           />
-          <aside
-            className="
-              w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
-              transform transition-transform duration-300 ease-out translate-x-0
-            "
-          >
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">Panel GuptaAI</h2>
+            <aside
+    className={`
+      w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
+      transform transition-transform duration-300 ease-out
+      ${showSidebar ? "translate-x-0" : "translate-x-full"}
+    `}
+  >
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-900">GuptaAI</h2>
               <button
                 onClick={() => setShowSidebar(false)}
                 className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -697,7 +698,7 @@ function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 space-x-2">
                     <p className="text-xs text-slate-500">
                       Kamu belum login. Masuk atau daftar untuk menyimpan riwayat per email.
                     </p>
@@ -732,25 +733,79 @@ function App() {
 
               {/* MODEL SECTION */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
-                <select
-                  value={model}
-                  onChange={(e) => {
-                    setModel(e.target.value);
-                    localStorage.setItem("gupta_model", e.target.value);
-                  }}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
-                >
-                  {MODEL_OPTIONS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[11px] text-slate-400">
-                  Pilih model AI yang ingin digunakan untuk percakapan.
-                </p>
-              </section>
+  <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
+
+  {/* Header: hanya model aktif */}
+  <button
+    type="button"
+    onClick={() => setModelOpen((v) => !v)}
+    className="
+      w-full flex items-center justify-between rounded-xl border border-slate-200
+      bg-white px-3 py-2 text-left text-xs text-slate-700
+      hover:bg-slate-50 transition-colors
+    "
+  >
+    <div className="flex items-center gap-2">
+      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">
+        {MODEL_OPTIONS.find((m) => m.value === model)?.label.charAt(0) ?? "M"}
+      </span>
+      <div className="flex flex-col">
+        <span className="font-medium">
+          {MODEL_OPTIONS.find((m) => m.value === model)?.label ?? "Pilih model"}
+        </span>
+        <span className="text-[10px] text-slate-400">
+          Klik untuk {modelOpen ? "menyembunyikan" : "mengganti"} model
+        </span>
+      </div>
+    </div>
+    <i
+      className={`bx bx-chevron-down text-lg text-slate-500 transition-transform ${
+        modelOpen ? "rotate-180" : ""
+      }`}
+    />
+  </button>
+
+  {/* List pilihan: hanya muncul kalau modelOpen = true */}
+  {modelOpen && (
+    <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
+      {MODEL_OPTIONS.map((m) => {
+        const active = model === m.value;
+        return (
+          <button
+            key={m.value}
+            type="button"
+            onClick={() => {
+              setModel(m.value);
+              localStorage.setItem("gupta_model", m.value);
+              setModelOpen(false);
+            }}
+            className={`
+              w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px]
+              transition-all duration-150
+              ${
+                active
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+              }
+            `}
+          >
+            <span>{m.label}</span>
+            {active && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Aktif
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  )}
+
+  <p className="mt-1 text-[11px] text-slate-400">
+    Pilih model AI yang ingin digunakan untuk percakapan.
+  </p>
+</section>
 
               {/* HISTORY SECTION */}
               <section>
