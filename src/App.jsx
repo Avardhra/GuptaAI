@@ -299,7 +299,63 @@ const handleFileChange = (e) => {
     if (loading) return;
 
     let text = content.trim();
+// CEK PERINTAH UBAH KEPRIBADIAN
+if (text.startsWith("/ubah-kepribadian")) {
+  const baris = text.split("\n");
 
+  // baris pertama = command
+  const bagian1 = baris[0].split(" ");
+
+  const password = bagian1[1]; // kata ke-2
+  const promptBaru = baris.slice(1).join("\n").trim(); // baris berikutnya
+
+  if (!password || !promptBaru) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content:
+          "Format salah.\n\nContoh:\n```\n/ubah-kepribadian AKSES-RAHASIA-999\nGaya baru AI di sini\n```",
+        time: Date.now(),
+      },
+    ]);
+    return;
+  }
+
+  // Kirim ke API ubah kepribadian
+  try {
+    const res = await fetch("/api/ubah-kepribadian", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: password,
+        promptBaru: promptBaru,
+      }),
+    });
+
+    const hasil = await res.json();
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: hasil.message || hasil.error,
+        time: Date.now(),
+      },
+    ]);
+  } catch (err) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: "Gagal mengubah kepribadian.",
+        time: Date.now(),
+      },
+    ]);
+  }
+
+  return; // HENTIKAN, jangan kirim ke AI
+}
     if (attachedFile && attachedType === "audio") {
       setLoading(true);
       try {
