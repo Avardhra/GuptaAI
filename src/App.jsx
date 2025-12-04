@@ -7,7 +7,7 @@ const GUPTA_API = import.meta.env.VITE_AVARDHRA;
 
 const groq = new Groq({
   apiKey: GUPTA_API,
-  dangerouslyAllowBrowser: true,
+  dangerouslyAllowBrowser: true, // untuk produksi sebaiknya lewat backend/proxy
 });
 
 export const requestToGroqAi = async (content) => {
@@ -15,7 +15,7 @@ export const requestToGroqAi = async (content) => {
     messages: [
       {
         role: "system",
-content: `
+        content: `
 Kamulah GuptaAI — asisten AI cerdas yang selalu menyapa pengguna dengan gaya kerajaan Majapahit yang halus.
 Contoh sapaan awal:
 "Baik baginda raja ✨❤️‍🔥, apa titah paduka?"
@@ -63,11 +63,12 @@ Perilaku:
 
 Misi:
 Hadir sebagai asisten AI yang modern, premium, dan bijaksana dengan nuansa kerajaan Majapahit.
-`
+`,
       },
       { role: "user", content },
     ],
-    model: "openai/gpt-oss-120b",
+    // gunakan model yang benar-benar tersedia di Groq
+    model: "llama-3.3-70b-versatile",
   });
 
   return reply.choices[0].message.content;
