@@ -22,7 +22,7 @@ export const requestToGroqAi = async (content) => {
       },
       { role: "user", content },
     ],
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
   });
 
   return reply.choices[0].message.content;
