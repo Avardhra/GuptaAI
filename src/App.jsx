@@ -429,7 +429,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => setShowLogin(true)}
-                className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
+                className="hidden sm:flex px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
               >
                 Masuk
               </button>
