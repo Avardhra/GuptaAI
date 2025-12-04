@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-
+import kepribadian from "./config/kepribadian.json";
 const GUPTA_API = import.meta.env.VITE_AVARDHRA;
 
 const groq = new Groq({
@@ -41,11 +41,8 @@ export const requestToGroqAi = async (content, model, history) => {
   const messages = [
     {
       role: "system",
-      content: `
-Gunakan bahasa Indonesia yang sopan, jelas, dan elegan.
-Jawab dengan format Markdown yang rapih: judul, subjudul, list, tabel, dan blok kode bila perlu.
-`,
-    },
+    content: kepribadian.systemPrompt,
+  },
     ...cleanedHistory,
     { role: "user", content },
   ];
