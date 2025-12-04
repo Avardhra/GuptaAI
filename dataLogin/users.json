@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "name": "Gede Valendra",
+    "email": "gedevalendra738@gmail.com",
+    "password": "valendra120506",
+    "firstLoginAt": "2025-12-04T08:29:50.240Z",
+    "lastLoginAt": "2025-12-04T08:29:50.240Z",
+    "totalSessions": 1
+  }
+]

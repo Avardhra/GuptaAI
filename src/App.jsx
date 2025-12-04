@@ -1,4 +1,3 @@
-// App.jsx
 import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
@@ -30,7 +29,7 @@ const MODEL_OPTIONS = [
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
-// hanya kirim field yang didukung API (role, content)
+// hanya kirim field yang didukung API
 export const requestToGroqAi = async (content, model, history) => {
   const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
 
@@ -92,28 +91,29 @@ function App() {
   // login & profile
   const [user, setUser] = useState(null); // {name, email}
   const [showLogin, setShowLogin] = useState(false);
-  const [showProfile, setShowProfile] = useState(false); // sekarang = sidebar kanan
+  const [loginMode, setLoginMode] = useState("login"); // 'login' | 'signup'
+  const [showProfile, setShowProfile] = useState(false);
 
   // model AI
   const [model, setModel] = useState(MODEL_OPTIONS[0].value);
 
   // chat
-  const [messages, setMessages] = useState([]); // {role, content, time}
+  const [messages, setMessages] = useState([]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
 
   // file/audio
   const [attachedFile, setAttachedFile] = useState(null);
-  const [attachedType, setAttachedType] = useState(null); // 'audio' | 'file' | null
+  const [attachedType, setAttachedType] = useState(null);
 
   // history modal
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
 
-  // ref auto-clear
+  // ref auto-clear & scroll
   const autoClearTimeoutRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
-  // helper key localStorage
   const storageKeyFor = (email) => `gupta_chat_history_${email || "guest"}`;
 
   // load messages lokal ketika user berubah
@@ -136,10 +136,8 @@ function App() {
       const email = user?.email || "guest";
       const key = storageKeyFor(email);
       if (messages && messages.length > 0) {
-        // lokal
         localStorage.setItem(key, JSON.stringify(messages));
 
-        // backend
         fetch("http://localhost:4000/api/history", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -207,7 +205,7 @@ function App() {
           }
           setMessages([]);
           autoClearTimeoutRef.current = null;
-        }, 120000); // 2 menit
+        }, 120000);
       } else {
         if (autoClearTimeoutRef.current) {
           clearTimeout(autoClearTimeoutRef.current);
@@ -224,7 +222,48 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, user]);
 
-  // file handler
+  // auto scroll
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, loading]);
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Teks disalin ke clipboard");
+    } catch (e) {
+      console.error("Failed to copy", e);
+    }
+  };
+
+  const shareConversation = async () => {
+    if (!messages || messages.length === 0) return;
+
+    const lines = messages.map((m) => {
+      const prefix = m.role === "user" ? "Anda:" : "GuptaAI:";
+      return `${prefix}\n${m.content}\n`;
+    });
+    const shareText = lines.join("\n----------------------\n");
+    const title = "Percakapan dengan GuptaAI";
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text: shareText });
+      } catch (e) {
+        console.error("Share cancelled or failed", e);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert("Percakapan disalin ke clipboard, silakan tempel di mana saja.");
+      } catch (e) {
+        console.error("Failed to copy conversation", e);
+      }
+    }
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -238,13 +277,11 @@ function App() {
     setAttachedType(null);
   };
 
-  // kirim pesan
   const sendMessage = async () => {
     if (loading) return;
 
     let text = content.trim();
 
-    // audio → whisper
     if (attachedFile && attachedType === "audio") {
       setLoading(true);
       try {
@@ -269,7 +306,6 @@ function App() {
       }
     }
 
-    // file biasa
     if (attachedFile && attachedType === "file") {
       const fileInfo = `\n\n[File terlampir: ${attachedFile.name} (${attachedFile.type || "unknown"})]`;
       text = text ? text + fileInfo : fileInfo;
@@ -330,31 +366,47 @@ function App() {
     }
   };
 
-  // login
-  const handleLoginSubmit = async (e) => {
+  // signup + login
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
-    const name = form.name.value.trim();
+    const name = form.name?.value.trim();
     const email = form.email.value.trim();
-    if (!name || !email) return;
-
-    const newUser = { name, email };
-    setUser(newUser);
-    localStorage.setItem("gupta_user", JSON.stringify(newUser));
-    setShowLogin(false);
+    const password = form.password.value.trim();
+    if (!email || !password || (loginMode === "signup" && !name)) return;
 
     try {
-      await fetch("http://localhost:4000/api/login", {
+      let url, body;
+      if (loginMode === "signup") {
+        url = "http://localhost:4000/api/signup";
+        body = { name, email, password };
+      } else {
+        url = "http://localhost:4000/api/login";
+        body = { email, password };
+      }
+
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify(body),
       });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Gagal otentikasi");
+        return;
+      }
+
+      const userData = data.user || { name, email };
+      setUser(userData);
+      localStorage.setItem("gupta_user", JSON.stringify(userData));
+      setShowLogin(false);
     } catch (err) {
-      console.error("Failed to log login to backend", err);
+      console.error("Auth error:", err);
+      alert("Gagal terhubung ke server otentikasi");
     }
   };
 
-  // buka history modal (pakai lokal)
   const openHistory = () => {
     try {
       const key = storageKeyFor(user?.email);
@@ -372,10 +424,18 @@ function App() {
   };
 
   const clearArchivedHistory = () => {
+    const email = user?.email || "guest";
     try {
-      const key = storageKeyFor(user?.email);
+      const key = storageKeyFor(email);
       localStorage.removeItem(key);
       setHistoryList([]);
+      setMessages([]);
+
+      fetch(`http://localhost:4000/api/history?email=${encodeURIComponent(email)}`, {
+        method: "DELETE",
+      }).catch((err) => {
+        console.error("Failed to clear history in backend", err);
+      });
     } catch (e) {
       console.error("Failed to clear archived history", e);
     }
@@ -383,25 +443,55 @@ function App() {
 
   return (
     <div className="h-screen bg-slate-100">
-      {/* LOGIN MODAL */}
+      {/* LOGIN / SIGNUP MODAL */}
       {showLogin && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Masuk ke GuptaAI</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-1">
+              {loginMode === "login" ? "Masuk ke GuptaAI" : "Daftar Akun GuptaAI"}
+            </h2>
             <p className="text-xs text-slate-500 mb-4">
-              Login sederhana ini hanya disimpan di browser kamu (localStorage).
+              Data login disimpan di server lokal (folder dataLogin) dan di browser kamu.
             </p>
-            <form onSubmit={handleLoginSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nama</label>
-                <input
-                  name="name"
-                  type="text"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
-                  placeholder="Nama kamu"
-                  autoComplete="off"
-                />
-              </div>
+
+            <div className="flex mb-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setLoginMode("login")}
+                className={`flex-1 py-1.5 rounded-l-lg ${
+                  loginMode === "login"
+                    ? "bg-white text-slate-900 font-semibold"
+                    : "text-slate-500"
+                }`}
+              >
+                Masuk
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginMode("signup")}
+                className={`flex-1 py-1.5 rounded-r-lg ${
+                  loginMode === "signup"
+                    ? "bg-white text-slate-900 font-semibold"
+                    : "text-slate-500"
+                }`}
+              >
+                Daftar
+              </button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="space-y-3">
+              {loginMode === "signup" && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Nama</label>
+                  <input
+                    name="name"
+                    type="text"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+                    placeholder="Nama kamu"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
                 <input
@@ -409,6 +499,16 @@ function App() {
                   type="email"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
                   placeholder="email@contoh.com"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Password</label>
+                <input
+                  name="password"
+                  type="password"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  placeholder="Minimal 4 karakter"
                   autoComplete="off"
                 />
               </div>
@@ -424,7 +524,7 @@ function App() {
                   type="submit"
                   className="px-4 py-1.5 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800"
                 >
-                  Masuk
+                  {loginMode === "login" ? "Masuk" : "Daftar"}
                 </button>
               </div>
             </form>
@@ -486,7 +586,6 @@ function App() {
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
-          {/* kiri: info GuptaAI */}
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
@@ -508,8 +607,15 @@ function App() {
             </div>
           </div>
 
-          {/* kanan: profil / login */}
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={shareConversation}
+              className="hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-100"
+            >
+              Bagikan
+            </button>
+
             {user ? (
               <button
                 type="button"
@@ -527,22 +633,20 @@ function App() {
                 onClick={() => setShowLogin(true)}
                 className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
               >
-                Masuk
+                Masuk / Daftar
               </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* RIGHT SIDEBAR: profil, model, riwayat */}
+      {/* RIGHT SIDEBAR */}
       {showProfile && (
         <div className="fixed inset-0 z-40 flex justify-end">
-          {/* overlay */}
           <div
             className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-100"
             onClick={() => setShowProfile(false)}
           />
-          {/* panel geser */}
           <aside
             className="
               w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
@@ -560,7 +664,6 @@ function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              {/* Profil */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Profil</h3>
                 {user ? (
@@ -584,12 +687,11 @@ function App() {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    Kamu belum login. Klik tombol &quot;Masuk&quot; di header untuk login.
+                    Kamu belum login. Klik tombol &quot;Masuk / Daftar&quot; di header.
                   </p>
                 )}
               </section>
 
-              {/* Model AI */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
                 <select
@@ -611,7 +713,6 @@ function App() {
                 </p>
               </section>
 
-              {/* Riwayat */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
                 <div className="flex items-center gap-2">
@@ -629,8 +730,7 @@ function App() {
                   </button>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Riwayat disimpan per email (atau guest) di localStorage, dan disinkronkan ke
-                  server.
+                  Riwayat disimpan per email (atau guest) di localStorage & backend.
                 </p>
               </section>
             </div>
@@ -756,9 +856,16 @@ function App() {
                               )}
                             </div>
                             {!isUser && (
-                              <span className="text-[10px] text-slate-400">
-                                Dijawab oleh GuptaAI
-                              </span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                <span>Dijawab oleh GuptaAI</span>
+                                <button
+                                  type="button"
+                                  onClick={() => copyText(msg.content)}
+                                  className="ml-2 px-2 py-0.5 rounded-full border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-50"
+                                >
+                                  Salin
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -778,6 +885,7 @@ function App() {
                       </div>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
               )}
             </div>
