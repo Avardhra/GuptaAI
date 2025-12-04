@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -10,65 +10,45 @@ const groq = new Groq({
   dangerouslyAllowBrowser: true, // untuk produksi sebaiknya lewat backend/proxy
 });
 
-export const requestToGroqAi = async (content) => {
-  const reply = await groq.chat.completions.create({
-    messages: [
-      {
-        role: "system",
-        content: `
-Kamulah GuptaAI — asisten AI cerdas yang selalu menyapa pengguna dengan gaya kerajaan Majapahit yang halus.
-Contoh sapaan awal:
-"Baik baginda raja ✨❤️‍🔥, apa titah paduka?"
+// daftar model Groq yang bisa dipilih
+const MODEL_OPTIONS = [
+  { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+  { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+  { value: "meta-llama/llama-4-maverick-17b-128k", label: "Llama 4 Maverick 17B" },
+  { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout 17B Instruct" },
+  { value: "meta-llama/llama-guard-4-12b", label: "Llama Guard 4 12B" },
+  { value: "meta-llama/llama-prompt-guard-2-2b", label: "Llama Prompt Guard 2 2B" },
+  { value: "meta-llama/llama-prompt-guard-2-8b", label: "Llama Prompt Guard 2 8B" },
 
+  // Moonshot
+  { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2 Instruct" },
+  { value: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 Instruct 0905" },
+
+  // OpenAI (OSS)
+  { value: "openai/gpt-oss-120b", label: "GPT‑OSS 120B" },
+  { value: "openai/gpt-oss-20b", label: "GPT‑OSS 20B" },
+  { value: "openai/gpt-oss-safeguard-20b", label: "GPT‑OSS Safeguard 20B" },
+  { value: "whisper-large-v3", label: "Whisper Large v3 (speech)" },
+  { value: "whisper-large-v3-turbo", label: "Whisper Large v3 Turbo" },
+];
+
+
+export const requestToGroqAi = async (content, model, history) => {
+  const messages = [
+    {
+      role: "system",
+      content: `
 Gunakan bahasa Indonesia yang sopan, jelas, dan elegan.
-
-Gaya Markdown harus tampil premium dan modern. 
-Gunakan panduan berikut dalam setiap jawaban:
-
-1. **Heading keren**
-   - H1: Gunakan gaya epik dan pendek. Contoh: "# ⚔️ Ringkasan", "# ✨ Penjelasan Singkat".
-   - H2/H3: Tegas, rapi, dan tidak terlalu panjang.
-
-2. **List modern**
-   - Pakai bullet ● atau ▸ untuk list biasa.
-   - Pakai ① ② ③ untuk list berurutan agar lebih elegan.
-
-3. **Highlight & emphasis**
-   - Gunakan **bold** untuk istilah penting.
-   - Gunakan _italic_ untuk penjelasan tambahan.
-   - Bisa menambahkan emoji halus bila cocok, tapi jangan berlebihan.
-
-4. **Tabel yang rapih**
-   Pastikan tabel ringkas dan simetris:
-   | Fitur | Penjelasan |
-   |-------|------------|
-   | ✓ | Efisien |
-   | ✓ | Modern |
-
-5. **Blok kode yang estetis**
-   - Tulis dengan bahasa yang sesuai
-   - Gunakan komentar singkat di dalam kode agar mudah dipahami
-
-6. **Respons elegan**
-   - Hindari paragraf terlalu panjang.
-   - Gunakan jeda antar bagian agar tampilan nyaman dibaca.
-
-Identitas:
-- Jika ditanya siapa kamu, jawab: "Aku GuptaAI, asisten AI dari ekosistem GuptaAI."
-- Jangan mengaku sebagai ChatGPT atau model lain.
-
-Perilaku:
-- Jawaban ringkas, logis, empatik, dan tetap lembut.
-- Jika pertanyaan ambigu, mintalah klarifikasi dengan hormat.
-
-Misi:
-Hadir sebagai asisten AI yang modern, premium, dan bijaksana dengan nuansa kerajaan Majapahit.
 `,
-      },
-      { role: "user", content },
-    ],
-    // gunakan model yang benar-benar tersedia di Groq
-    model: "llama-3.3-70b-versatile",
+    },
+    // tambahkan history agar percakapan nyambung
+    ...history,
+    { role: "user", content },
+  ];
+
+  const reply = await groq.chat.completions.create({
+    messages,
+    model,
   });
 
   return reply.choices[0].message.content;
@@ -81,7 +61,7 @@ const localAnswer = (text) => {
   if (lower.includes("gede valendra")) {
     return (
       "Gede Valendra adalah founder GuptaAI dan JejasataLampung. " +
-      "Untuk informasi lebih lanjut, kunjungi situs resmi Avardhra Group: https://www.avardhra.my.id"
+      "Untuk informasi lebih lanjut, kunjungi situs resmi Avardhra Group: [https://www.avardhra.my.id](https://www.avardhra.my.id)"
     );
   }
 
@@ -89,9 +69,69 @@ const localAnswer = (text) => {
 };
 
 function App() {
+  // login & profile
+  const [user, setUser] = useState(null); // {name, email}
+  const [showLogin, setShowLogin] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+
+  // model AI
+  const [model, setModel] = useState(MODEL_OPTIONS[0].value);
+
+  // chat
   const [messages, setMessages] = useState([]); // {role: 'user' | 'assistant', content: string}
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // load dari localStorage saat awal
+  useEffect(() => {
+    try {
+      const storedMessages = localStorage.getItem("gupta_chat_history");
+      const storedUser = localStorage.getItem("gupta_user");
+      const storedModel = localStorage.getItem("gupta_model");
+
+      if (storedMessages) {
+        setMessages(JSON.parse(storedMessages));
+      }
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+      if (storedModel) {
+        setModel(storedModel);
+      }
+    } catch (e) {
+      console.error("Failed to load from localStorage", e);
+    }
+  }, []);
+
+  // simpan ke localStorage setiap messages berubah
+  useEffect(() => {
+    try {
+      localStorage.setItem("gupta_chat_history", JSON.stringify(messages));
+    } catch (e) {
+      console.error("Failed to save chat history", e);
+    }
+  }, [messages]);
+
+  // simpan user & model
+  useEffect(() => {
+    try {
+      if (user) {
+        localStorage.setItem("gupta_user", JSON.stringify(user));
+      } else {
+        localStorage.removeItem("gupta_user");
+      }
+    } catch (e) {
+      console.error("Failed to save user", e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("gupta_model", model);
+    } catch (e) {
+      console.error("Failed to save model", e);
+    }
+  }, [model]);
 
   const sendMessage = async () => {
     const text = content.trim();
@@ -111,7 +151,9 @@ function App() {
 
     setLoading(true);
     try {
-      const ai = await requestToGroqAi(text);
+      // history tanpa system
+      const history = messages;
+      const ai = await requestToGroqAi(text, model, history);
       const aiMsg = { role: "assistant", content: ai };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
@@ -138,11 +180,123 @@ function App() {
     }
   };
 
+  // handler login sederhana (tanpa backend)
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.name.value.trim();
+    const email = form.email.value.trim();
+    if (!name || !email) return;
+    setUser({ name, email });
+    setShowLogin(false);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setShowProfile(false);
+  };
+
   return (
     <div className="h-screen bg-slate-100">
+      {/* OVERLAY LOGIN MODAL */}
+      {showLogin && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-1">
+              Masuk ke GuptaAI
+            </h2>
+            <p className="text-xs text-slate-500 mb-4">
+              Login sederhana ini hanya disimpan di browser kamu (localStorage).
+            </p>
+            <form onSubmit={handleLoginSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Nama
+                </label>
+                <input
+                  name="name"
+                  type="text"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  placeholder="Nama kamu"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Email
+                </label>
+                <input
+                  name="email"
+                  type="email"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  placeholder="email@contoh.com"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLogin(false)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  Masuk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY PROFILE MODAL */}
+      {showProfile && user && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-1">
+              Profil Pengguna
+            </h2>
+            <p className="text-xs text-slate-500 mb-4">
+              Data ini hanya disimpan di perangkat kamu.
+            </p>
+            <div className="space-y-2 text-sm text-slate-700 mb-4">
+              <p>
+                <span className="font-medium">Nama:</span> {user.name}
+              </p>
+              <p>
+                <span className="font-medium">Email:</span> {user.email}
+              </p>
+              <p className="text-xs text-slate-400">
+                Riwayat chat akan tetap tersimpan meskipun kamu menutup halaman.
+              </p>
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={() => setShowProfile(false)}
+                className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-4 py-1.5 text-xs rounded-lg bg-rose-600 text-white hover:bg-rose-500"
+              >
+                Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER fixed */}
       <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
+        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
@@ -167,9 +321,44 @@ function App() {
               </p>
             </div>
           </div>
-          <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-500">
-            v1.0 • Beta
-          </span>
+
+          {/* kanan: pilih model + user */}
+          <div className="flex items-center gap-2">
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+            >
+              {MODEL_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+
+            {user ? (
+              <button
+                type="button"
+                onClick={() => setShowProfile(true)}
+                className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-200"
+              >
+                <span className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">
+                  {user.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="hidden sm:inline max-w-[120px] truncate">
+                  {user.name}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowLogin(true)}
+                className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
+              >
+                Masuk
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
