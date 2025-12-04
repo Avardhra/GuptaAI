@@ -109,6 +109,8 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
 const [modelOpen, setModelOpen] = useState(false);
+const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
+
   // per-tab session id (supaya tiap tab punya sesi sendiri)
   const [sessionId] = useState(() => {
     const existing = sessionStorage.getItem("gupta_session_id");
@@ -284,18 +286,17 @@ const [modelOpen, setModelOpen] = useState(false);
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const isAudio = file.type.startsWith("audio/");
-    setAttachedFile(file);
-    setAttachedType(isAudio ? "audio" : "file");
-  };
+const handleFileChange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-  const clearAttachment = () => {
-    setAttachedFile(null);
-    setAttachedType(null);
-  };
+  const allowed = ["audio/", "application/pdf", "text/plain", "image/"];
+
+  const isValid = allowed.some(type => file.type.startsWith(type));
+  setFileStatus(isValid ? "valid" : "invalid");
+  setAttachedFile(file);
+};
+
 
   const sendMessage = async () => {
     if (loading) return;
@@ -386,45 +387,56 @@ const [modelOpen, setModelOpen] = useState(false);
   };
 
   // signup + login (API via fetch, ganti URL ke endpoint serverless kamu)
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const name = form.name?.value.trim();
-    const email = form.email.value.trim();
-    const password = form.password.value.trim();
-    if (!email || !password || (loginMode === "signup" && !name)) return;
+const handleAuthSubmit = async (e) => {
+  e.preventDefault();
+  const form = e.target;
 
-    try {
-      let url, body;
-      if (loginMode === "signup") {
-        url = "/api/signup"; // ganti ke endpoint vercel / serverless kamu
-        body = { name, email, password };
-      } else {
-        url = "/api/login";
-        body = { email, password };
-      }
+  const rawName = form.name ? form.name.value : "";
+  const name = rawName ? rawName.trim() : "";
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+  const email = (form.email?.value || "").trim();
+  const password = (form.password?.value || "").trim();
 
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Gagal otentikasi");
+  if (!email || !password || (loginMode === "signup" && !name)) {
+    alert("Lengkapi data terlebih dahulu");
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem("gupta_users") || "[]";
+    const users = JSON.parse(raw);
+
+    if (loginMode === "signup") {
+      const already = users.find((u) => u.email === email);
+      if (already) {
+        alert("Email sudah terdaftar");
         return;
       }
-
-      const userData = data.user || { name, email };
-      setUser(userData);
-      localStorage.setItem("gupta_user", JSON.stringify(userData));
-      setShowLogin(false);
-    } catch (err) {
-      console.error("Auth error:", err);
-      alert("Gagal terhubung ke server otentikasi");
+      users.push({ name, email, password });
+      localStorage.setItem("gupta_users", JSON.stringify(users));
+    } else {
+      const user = users.find((u) => u.email === email && u.password === password);
+      if (!user) {
+        alert("Email atau password salah");
+        return;
+      }
     }
-  };
+
+    const finalUser =
+      loginMode === "signup"
+        ? { name, email }
+        : { name: users.find((u) => u.email === email).name, email };
+
+    setUser(finalUser);
+    localStorage.setItem("gupta_user", JSON.stringify(finalUser));
+    setShowLogin(false);
+  } catch (err) {
+    console.error("Auth error:", err);
+    alert("Gagal memproses data login di browser");
+  }
+};
+
+
 
   const openHistory = () => {
     try {
@@ -841,22 +853,24 @@ const [modelOpen, setModelOpen] = useState(false);
       >
         <div className="mx-auto flex max-w-3xl items-end gap-2">
           <div className="flex flex-col items-center gap-1">
-            <label className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer">
-              <i className="bx bx-paperclip text-xl" />
-              <input
-                type="file"
-                accept="audio/*,application/pdf,text/plain,image/*"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-            {attachedFile && (
-              <span className="max-w-[72px] text-[9px] text-slate-500 text-center line-clamp-2">
-                {attachedType === "audio" ? "Audio: " : "File: "}
-                {attachedFile.name}
-              </span>
-            )}
-          </div>
+  <label
+    className={`inline-flex h-11 w-11 items-center justify-center rounded-full 
+      border bg-white text-slate-700 shadow-sm cursor-pointer 
+      ${fileStatus === "valid" ? "bg-green-500 text-white" : ""}
+      ${fileStatus === "invalid" ? "bg-red-500 text-white" : ""}
+      ${!fileStatus ? "border-slate-200 hover:bg-slate-50" : ""}
+    `}
+  >
+    <i className="bx bx-paperclip text-xl" />
+    <input
+      type="file"
+      accept="audio/*,application/pdf,text/plain,image/*"
+      className="hidden"
+      onChange={handleFileChange}
+    />
+  </label>
+</div>
+
 
           <textarea
             className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
