@@ -1,5 +1,4 @@
-// App.jsx (modified)
-// Catatan: pastikan dependency (React, Groq SDK, ReactMarkdown, remark-gfm, tailwind/boxicons dll) tetap ada.
+// App.jsx (full, fixed Groq 400 "property 'time' is unsupported")
 import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
@@ -31,8 +30,15 @@ const MODEL_OPTIONS = [
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
+// HANYA kirim field yang didukung API (role, content)
 export const requestToGroqAi = async (content, model, history) => {
   const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
+
+  // buang field non-standar seperti time sebelum dikirim
+  const cleanedHistory = (history || []).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
 
   const messages = [
     {
@@ -42,7 +48,7 @@ Gunakan bahasa Indonesia yang sopan, jelas, dan elegan.
 Jawab dengan format Markdown yang rapih: judul, subjudul, list, tabel, dan blok kode bila perlu.
 `,
     },
-    ...history,
+    ...cleanedHistory,
     { role: "user", content },
   ];
 
@@ -117,11 +123,6 @@ function App() {
       const key = storageKeyFor(user?.email);
       const stored = localStorage.getItem(key);
       if (stored) {
-        // do not automatically populate UI if we want to keep current session messages
-        // but per requirement when login, riwayat dapat diakses via modal.
-        // We will not auto-fill messages UI on login to avoid surprising user;
-        // instead we keep messages as-is and show saved history in modal.
-        // However if messages are empty, we can optionally load to UI.
         if (!messages || messages.length === 0) {
           setMessages(JSON.parse(stored));
         }
@@ -133,7 +134,6 @@ function App() {
   }, [user]);
 
   // --- Save messages to per-user storage whenever messages change ---
-  // IMPORTANT: we **only write** when messages length > 0 to avoid overwriting archive with empty when auto-cleared.
   useEffect(() => {
     try {
       const key = storageKeyFor(user?.email);
@@ -152,7 +152,6 @@ function App() {
       const storedModel = localStorage.getItem("gupta_model");
       if (storedUser) setUser(JSON.parse(storedUser));
       if (storedModel) setModel(storedModel);
-      // If guest history exists and messages empty, load it
       if (!storedUser) {
         const guestKey = storageKeyFor("guest");
         const guestStored = localStorage.getItem(guestKey);
@@ -170,26 +169,21 @@ function App() {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        // start auto-clear timer (2 minutes)
         if (autoClearTimeoutRef.current) clearTimeout(autoClearTimeoutRef.current);
         autoClearTimeoutRef.current = setTimeout(() => {
-          // before clearing UI, persist messages to per-user storage (archive)
           try {
             const key = storageKeyFor(user?.email);
             if (messages && messages.length > 0) {
               localStorage.setItem(key, JSON.stringify(messages));
-              // update historyList for modal as well
               setHistoryList(JSON.parse(JSON.stringify(messages)));
             }
           } catch (e) {
             console.error("Failed to backup messages before auto-clear", e);
           }
-          // clear UI messages (but do NOT remove archive)
           setMessages([]);
           autoClearTimeoutRef.current = null;
-        }, 120000); // 120000 ms = 2 menit
+        }, 120000); // 2 menit
       } else {
-        // tab visible again -> cancel auto clear
         if (autoClearTimeoutRef.current) {
           clearTimeout(autoClearTimeoutRef.current);
           autoClearTimeoutRef.current = null;
@@ -258,7 +252,7 @@ function App() {
 
     if (!text) return;
 
-    // user message with timestamp
+    // user message with timestamp (boleh ada time di state)
     const userMsg = { role: "user", content: text, time: Date.now() };
     setMessages((prev) => [...prev, userMsg]);
     setContent("");
@@ -272,8 +266,9 @@ function App() {
 
     setLoading(true);
     try {
-      const history = messages;
-      const ai = await requestToGroqAi(text, model, history);
+      // ambil snapshot history untuk API
+      const historyForApi = [...messages, userMsg];
+      const ai = await requestToGroqAi(text, model, historyForApi);
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
@@ -313,13 +308,12 @@ function App() {
     localStorage.setItem("gupta_user", JSON.stringify(newUser));
     setShowLogin(false);
 
-    // load saved history into history modal list (but do NOT auto-paste into chat UI)
     try {
       const key = storageKeyFor(email);
       const stored = localStorage.getItem(key);
       if (stored) setHistoryList(JSON.parse(stored));
-    } catch (e) {
-      console.error("Failed to load user history after login", e);
+    } catch (err) {
+      console.error("Failed to load user history after login", err);
     }
   };
 
@@ -369,36 +363,40 @@ function App() {
             <form onSubmit={handleLoginSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Nama</label>
-                <input name="name" type="text" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300" placeholder="Nama kamu" autoComplete="off" />
+                <input
+                  name="name"
+                  type="text"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  placeholder="Nama kamu"
+                  autoComplete="off"
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-                <input name="email" type="email" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300" placeholder="email@contoh.com" autoComplete="off" />
+                <input
+                  name="email"
+                  type="email"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  placeholder="email@contoh.com"
+                  autoComplete="off"
+                />
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowLogin(false)} className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Batal</button>
-                <button type="submit" className="px-4 py-1.5 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800">Masuk</button>
+                <button
+                  type="button"
+                  onClick={() => setShowLogin(false)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  Masuk
+                </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* PROFILE MODAL */}
-      {showProfile && user && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Profil Pengguna</h2>
-            <p className="text-xs text-slate-500 mb-4">Data ini disimpan di perangkat (localStorage) dengan key berbasis email.</p>
-            <div className="space-y-2 text-sm text-slate-700 mb-4">
-              <p><span className="font-medium">Nama:</span> {user.name}</p>
-              <p><span className="font-medium">Email:</span> {user.email}</p>
-              <p className="text-xs text-slate-400">Riwayat chat tersimpan di akun ini dan dapat diakses oleh siapa saja yang login dengan email tersebut pada perangkat ini.</p>
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <button type="button" onClick={() => setShowProfile(false)} className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Tutup</button>
-              <button type="button" onClick={handleLogout} className="px-4 py-1.5 text-xs rounded-lg bg-rose-600 text-white hover:bg-rose-500">Keluar</button>
-            </div>
           </div>
         </div>
       )}
@@ -408,17 +406,38 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5">
             <div className="flex items-start justify-between">
-              <h2 className="text-lg font-semibold mb-2">Riwayat Chat ({user?.email || "guest"})</h2>
+              <h2 className="text-lg font-semibold mb-2">
+                Riwayat Chat ({user?.email || "guest"})
+              </h2>
               <div className="flex items-center gap-2">
-                <button onClick={clearArchivedHistory} className="text-xs px-2 py-1 rounded border border-slate-200 text-rose-600 hover:bg-rose-50">Hapus Riwayat</button>
-                <button onClick={() => setShowHistory(false)} className="text-xs px-2 py-1 rounded border border-slate-200">Tutup</button>
+                <button
+                  onClick={clearArchivedHistory}
+                  className="text-xs px-2 py-1 rounded border border-slate-200 text-rose-600 hover:bg-rose-50"
+                >
+                  Hapus Riwayat
+                </button>
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="text-xs px-2 py-1 rounded border border-slate-200"
+                >
+                  Tutup
+                </button>
               </div>
             </div>
             <div className="max-h-80 overflow-y-auto space-y-3 mt-2">
               {historyList && historyList.length > 0 ? (
                 historyList.map((m, i) => (
-                  <div key={i} className={`p-3 rounded-lg ${m.role === "user" ? "bg-slate-100 text-slate-900" : "bg-white border border-slate-200 text-slate-900"}`}>
-                    <div className="text-[12px] font-medium mb-1">{m.role === "user" ? "Anda" : "GuptaAI"}</div>
+                  <div
+                    key={i}
+                    className={`p-3 rounded-lg ${
+                      m.role === "user"
+                        ? "bg-slate-100 text-slate-900"
+                        : "bg-white border border-slate-200 text-slate-900"
+                    }`}
+                  >
+                    <div className="text-[12px] font-medium mb-1">
+                      {m.role === "user" ? "Anda" : "GuptaAI"}
+                    </div>
                     <div className="text-sm whitespace-pre-wrap">{m.content}</div>
                     <div className="text-[10px] text-slate-400 mt-1">
                       {m.time ? new Date(m.time).toLocaleString() : ""}
@@ -434,68 +453,206 @@ function App() {
       )}
 
       {/* HEADER */}
-      <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">G</div>
-              <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 shadow">AI</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-slate-900">GuptaAI</span>
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-100">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1" />
-                  Online
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">Asisten AI dari Avardhra Group</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <select value={model} onChange={(e) => setModel(e.target.value)} className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300">
-              {MODEL_OPTIONS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-
-            <button onClick={openHistory} className="px-3 py-1 rounded-full bg-white border border-slate-300 text-[11px] hover:bg-slate-100">Riwayat</button>
-
-            {user ? (
-              <button type="button" onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-200">
-                <span className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">{user.name.charAt(0).toUpperCase()}</span>
-                <span className="hidden sm:inline max-w-[120px] truncate">{user.name}</span>
-              </button>
-            ) : (
-              <button type="button" onClick={() => setShowLogin(true)} className="hidden sm:flex px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800">Masuk</button>
-            )}
-          </div>
+     <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+  <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
+    {/* Kiri: info GuptaAI */}
+    <div className="flex items-center gap-3">
+      <div className="relative">
+        <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
+          G
         </div>
-      </header>
+        <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 shadow">
+          AI
+        </span>
+      </div>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-semibold text-slate-900">GuptaAI</span>
+          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-100">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1" />
+            Online
+          </span>
+        </div>
+        <p className="text-xs text-slate-500">Asisten AI dari Avardhra Group</p>
+      </div>
+    </div>
+
+    {/* Kanan: hanya profil / login, buka sidebar */}
+    <div className="flex items-center gap-2">
+      {user ? (
+        <button
+          type="button"
+          onClick={() => setShowProfile(true)} // sekarang buka sidebar
+          className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] text-slate-700 hover:bg-slate-200"
+        >
+          <span className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">
+            {user.name.charAt(0).toUpperCase()}
+          </span>
+          <span className="hidden sm:inline max-w-[120px] truncate">{user.name}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowLogin(true)}
+          className="px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] hover:bg-slate-800"
+        >
+          Masuk
+        </button>
+      )}
+    </div>
+  </div>
+</header>
+{/*  */}
+{/* RIGHT SIDEBAR */}
+{showProfile && (
+  <div className="fixed inset-0 z-40 flex justify-end">
+    {/* overlay dengan fade */}
+    <div
+      className="flex-1 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-100"
+      onClick={() => setShowProfile(false)}
+    />
+    {/* panel geser dari kanan */}
+    <aside
+      className="
+        w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
+        transform transition-transform duration-300 ease-out translate-x-0
+      "
+    >
+      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-900">Panel GuptaAI</h2>
+        <button
+          onClick={() => setShowProfile(false)}
+          className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
+        >
+          Tutup
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Section: Profil */}
+        <section>
+          <h3 className="text-xs font-semibold text-slate-500 mb-2">Profil</h3>
+          {user ? (
+            <div className="space-y-1 text-sm text-slate-700">
+              <p>
+                <span className="font-medium">Nama:</span> {user.name}
+              </p>
+              <p>
+                <span className="font-medium">Email:</span> {user.email}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Riwayat chat tersimpan di perangkat ini berdasarkan email.
+              </p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-3 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-rose-600 text-white hover:bg-rose-500"
+              >
+                Keluar
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">
+              Kamu belum login. Klik tombol &quot;Masuk&quot; di header untuk login.
+            </p>
+          )}
+        </section>
+
+        {/* Section: Pilihan model */}
+        <section>
+          <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+          >
+            {MODEL_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Pilih model AI yang ingin digunakan untuk percakapan.
+          </p>
+        </section>
+
+        {/* Section: Riwayat */}
+        <section>
+          <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openHistory}
+              className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] hover:bg-slate-800"
+            >
+              Buka Riwayat
+            </button>
+            <button
+              onClick={clearArchivedHistory}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] text-rose-600 hover:bg-rose-50"
+            >
+              Hapus
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Riwayat disimpan per email (atau guest) di localStorage.
+          </p>
+        </section>
+      </div>
+    </aside>
+  </div>
+)}
+
 
       {/* INPUT FOOTER */}
-      <form onSubmit={handleSubmit} className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-3 py-3 sm:px-4">
+      <form
+        onSubmit={handleSubmit}
+        className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-3 py-3 sm:px-4"
+      >
         <div className="mx-auto flex max-w-3xl items-end gap-2">
           <div className="flex flex-col items-center gap-1">
             <label className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer">
               <i className="bx bx-paperclip text-xl" />
-              <input type="file" accept="audio/*,application/pdf,text/plain,image/*" className="hidden" onChange={handleFileChange} />
+              <input
+                type="file"
+                accept="audio/*,application/pdf,text/plain,image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
             </label>
             {attachedFile && (
               <span className="max-w-[72px] text-[9px] text-slate-500 text-center line-clamp-2">
-                {attachedType === "audio" ? "Audio: " : "File: "}{attachedFile.name}
+                {attachedType === "audio" ? "Audio: " : "File: "}
+                {attachedFile.name}
               </span>
             )}
           </div>
 
-          <textarea className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]" placeholder="Tulis pertanyaanmu di sini..." spellCheck="false" rows={1} value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={handleKeyDown} />
+          <textarea
+            className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
+            placeholder="Tulis pertanyaanmu di sini..."
+            spellCheck="false"
+            rows={1}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
 
-          <button type="submit" disabled={loading || (!content.trim() && !attachedFile)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? <i className="bx bx-loader-alt animate-spin text-xl" /> : <i className="bx bx-right-arrow-alt text-xl" />}
+          <button
+            type="submit"
+            disabled={loading || (!content.trim() && !attachedFile)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <i className="bx bx-loader-alt animate-spin text-xl" />
+            ) : (
+              <i className="bx bx-right-arrow-alt text-xl" />
+            )}
           </button>
         </div>
-        <p className="mt-1 text-[10px] text-center text-slate-400">Enter untuk kirim • Shift + Enter untuk baris baru.</p>
+        <p className="mt-1 text-[10px] text-center text-slate-400">
+          Enter untuk kirim • Shift + Enter untuk baris baru.
+        </p>
       </form>
 
       {/* CHAT AREA */}
@@ -503,17 +660,28 @@ function App() {
         <div className="h-full flex justify-center px-2 sm:px-4">
           <div className="w-full max-w-5xl rounded-3xl flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-              {(!messages || messages.length === 0) ? (
+              {!messages || messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
                   <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white text-2xl shadow-lg shadow-slate-900/30">
                     <i className="bx bx-message-dots" />
                   </div>
-                  <h1 className="text-lg font-semibold text-slate-900 mb-1">Mulai ngobrol dengan GuptaAI</h1>
-                  <p className="text-sm mb-4 max-w-md">Tulis pertanyaanmu di bawah, GuptaAI akan menjawab dalam bahasa Indonesia yang jelas dan mudah dipahami.</p>
+                  <h1 className="text-lg font-semibold text-slate-900 mb-1">
+                    Mulai ngobrol dengan GuptaAI
+                  </h1>
+                  <p className="text-sm mb-4 max-w-md">
+                    Tulis pertanyaanmu di bawah, GuptaAI akan menjawab dalam bahasa Indonesia yang
+                    jelas dan mudah dipahami.
+                  </p>
                   <div className="flex flex-wrap gap-2 justify-center text-xs text-slate-600 max-w-md">
-                    <span className="px-3 py-1 rounded-full bg-white border border-slate-200">✨ Jelaskan konsep sulit dengan sederhana</span>
-                    <span className="px-3 py-1 rounded-full bg-white border border-slate-200">💡 Cari ide konten & caption</span>
-                    <span className="px-3 py-1 rounded-full bg-white border border-slate-200">🛠️ Bantu review & refactor kode</span>
+                    <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
+                      ✨ Jelaskan konsep sulit dengan sederhana
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
+                      💡 Cari ide konten & caption
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
+                      🛠️ Bantu review & refactor kode
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -521,13 +689,28 @@ function App() {
                   {messages.map((msg, idx) => {
                     const isUser = msg.role === "user";
                     return (
-                      <div key={idx} className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
-                        <div className={`flex max-w-3xl gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+                      <div
+                        key={idx}
+                        className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`flex max-w-3xl gap-3 ${
+                            isUser ? "flex-row-reverse" : "flex-row"
+                          }`}
+                        >
                           {!isUser && (
-                            <div className="flex-shrink-0 h-9 w-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-semibold shadow-sm">G</div>
+                            <div className="flex-shrink-0 h-9 w-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-semibold shadow-sm">
+                              G
+                            </div>
                           )}
                           <div className="flex flex-col gap-1">
-                            <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${isUser ? "bg-slate-900 text-white rounded-br-md" : "bg-white text-slate-900 border border-slate-200 rounded-bl-md"}`}>
+                            <div
+                              className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                                isUser
+                                  ? "bg-slate-900 text-white rounded-br-md"
+                                  : "bg-white text-slate-900 border border-slate-200 rounded-bl-md"
+                              }`}
+                            >
                               {isUser ? (
                                 msg.content
                               ) : (
@@ -538,7 +721,11 @@ function App() {
                                 </div>
                               )}
                             </div>
-                            {!isUser && <span className="text-[10px] text-slate-400">Dijawab oleh GuptaAI</span>}
+                            {!isUser && (
+                              <span className="text-[10px] text-slate-400">
+                                Dijawab oleh GuptaAI
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -547,7 +734,9 @@ function App() {
                   {loading && (
                     <div className="flex justify-start">
                       <div className="flex max-w-xs items-center gap-2">
-                        <div className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-semibold shadow-sm">G</div>
+                        <div className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-semibold shadow-sm">
+                          G
+                        </div>
                         <div className="rounded-2xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-500 flex items-center gap-2">
                           <span className="inline-flex h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse" />
                           Mengetik...
