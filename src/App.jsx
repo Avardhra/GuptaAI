@@ -7,7 +7,7 @@ const GUPTA_API = import.meta.env.VITE_AVARDHRA;
 
 const groq = new Groq({
   apiKey: GUPTA_API,
-  dangerouslyAllowBrowser: true, // untuk produksi sebaiknya lewat backend/proxy
+  dangerouslyAllowBrowser: true, // produksi: lebih aman lewat backend
 });
 
 // daftar model Groq yang bisa dipilih
@@ -28,27 +28,34 @@ const MODEL_OPTIONS = [
   { value: "openai/gpt-oss-120b", label: "GPT‑OSS 120B" },
   { value: "openai/gpt-oss-20b", label: "GPT‑OSS 20B" },
   { value: "openai/gpt-oss-safeguard-20b", label: "GPT‑OSS Safeguard 20B" },
-  { value: "whisper-large-v3", label: "Whisper Large v3 (speech)" },
-  { value: "whisper-large-v3-turbo", label: "Whisper Large v3 Turbo" },
+
+  // Whisper (hanya untuk audio, bukan chat)
+  { value: "whisper-large-v3", label: "Whisper Large v3 (audio)" },
+  { value: "whisper-large-v3-turbo", label: "Whisper Large v3 Turbo (audio)" },
 ];
 
+// pilih model teks default (kalau user pilih whisper, nanti dipaksa balik ke ini)
+const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
 export const requestToGroqAi = async (content, model, history) => {
+  // kalau user pilih Whisper, pakai fallback text model
+  const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
+
   const messages = [
     {
       role: "system",
       content: `
 Gunakan bahasa Indonesia yang sopan, jelas, dan elegan.
+Jawab dengan format Markdown yang rapih: judul, subjudul, list, tabel, dan blok kode bila perlu.
 `,
     },
-    // tambahkan history agar percakapan nyambung
     ...history,
     { role: "user", content },
   ];
 
   const reply = await groq.chat.completions.create({
     messages,
-    model,
+    model: safeModel,
   });
 
   return reply.choices[0].message.content;
@@ -68,6 +75,25 @@ const localAnswer = (text) => {
   return null;
 };
 
+// transkripsi audio dengan Whisper di Groq
+const transcribeAudioWithGroq = async (file, whisperModel = "whisper-large-v3") => {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = new Uint8Array(arrayBuffer);
+
+  const transcription = await groq.audio.transcriptions.create({
+    file: {
+      name: file.name,
+      type: file.type || "audio/mpeg",
+      data: buffer,
+    },
+    model: whisperModel,
+    response_format: "json",
+    language: "id",
+  });
+
+  return transcription.text;
+};
+
 function App() {
   // login & profile
   const [user, setUser] = useState(null); // {name, email}
@@ -81,6 +107,10 @@ function App() {
   const [messages, setMessages] = useState([]); // {role: 'user' | 'assistant', content: string}
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // file/audio
+  const [attachedFile, setAttachedFile] = useState(null); // File | null
+  const [attachedType, setAttachedType] = useState(null); // 'audio' | 'file' | null
 
   // load dari localStorage saat awal
   useEffect(() => {
@@ -133,15 +163,62 @@ function App() {
     }
   }, [model]);
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isAudio = file.type.startsWith("audio/");
+    setAttachedFile(file);
+    setAttachedType(isAudio ? "audio" : "file");
+  };
+
+  const clearAttachment = () => {
+    setAttachedFile(null);
+    setAttachedType(null);
+  };
+
   const sendMessage = async () => {
-    const text = content.trim();
-    if (!text || loading) return;
+    if (loading) return;
+
+    let text = content.trim();
+
+    // jika ada audio, transcribe dulu
+    if (attachedFile && attachedType === "audio") {
+      setLoading(true);
+      try {
+        const whisperModel =
+          model === "whisper-large-v3-turbo" ? "whisper-large-v3-turbo" : "whisper-large-v3";
+        const transcript = await transcribeAudioWithGroq(attachedFile, whisperModel);
+        const prefix = text ? `${text}\n\nTranskrip audio:\n${transcript}` : transcript;
+        text = prefix;
+      } catch (err) {
+        console.error("Error transcribe:", err);
+        const errMsg = {
+          role: "assistant",
+          content: "Maaf, terjadi kesalahan saat memproses audio.",
+        };
+        setMessages((prev) => [...prev, errMsg]);
+        setLoading(false);
+        clearAttachment();
+        return;
+      } finally {
+        clearAttachment();
+      }
+    }
+
+    // jika ada file non‑audio, hanya kirim info nama file ke prompt
+    if (attachedFile && attachedType === "file") {
+      const fileInfo = `\n\n[File terlampir: ${attachedFile.name} (${attachedFile.type || "unknown"})]`;
+      text = text ? text + fileInfo : fileInfo;
+      clearAttachment();
+    }
+
+    if (!text) return;
 
     const userMsg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setContent("");
 
-    // cek dulu basis data lokal
     const cached = localAnswer(text);
     if (cached) {
       const aiMsg = { role: "assistant", content: cached };
@@ -151,7 +228,6 @@ function App() {
 
     setLoading(true);
     try {
-      // history tanpa system
       const history = messages;
       const ai = await requestToGroqAi(text, model, history);
       const aiMsg = { role: "assistant", content: ai };
@@ -367,7 +443,26 @@ function App() {
         onSubmit={handleSubmit}
         className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-3 py-3 sm:px-4"
       >
-        <div className="mx-auto flex max-w-3xl items-center gap-2">
+        <div className="mx-auto flex max-w-3xl items-end gap-2">
+          {/* tombol upload */}
+          <div className="flex flex-col items-center gap-1">
+            <label className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 cursor-pointer">
+              <i className="bx bx-paperclip text-xl" />
+              <input
+                type="file"
+                accept="audio/*,application/pdf,text/plain,image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+            {attachedFile && (
+              <span className="max-w-[72px] text-[9px] text-slate-500 text-center line-clamp-2">
+                {attachedType === "audio" ? "Audio: " : "File: "}
+                {attachedFile.name}
+              </span>
+            )}
+          </div>
+
           <textarea
             className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
             placeholder="Tulis pertanyaanmu di sini..."
@@ -379,7 +474,7 @@ function App() {
           />
           <button
             type="submit"
-            disabled={loading || !content.trim()}
+            disabled={loading || (!content.trim() && !attachedFile)}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -459,6 +554,73 @@ function App() {
                                   <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
+                                      h1: ({ children }) => (
+                                        <h1 className="text-lg font-semibold mb-2 text-slate-900 border-b border-slate-200 pb-1">
+                                          {children}
+                                        </h1>
+                                      ),
+                                      h2: ({ children }) => (
+                                        <h2 className="text-base font-semibold mt-3 mb-1 text-slate-900">
+                                          {children}
+                                        </h2>
+                                      ),
+                                      h3: ({ children }) => (
+                                        <h3 className="text-sm font-semibold mt-2 mb-1 text-slate-900">
+                                          {children}
+                                        </h3>
+                                      ),
+                                      p: ({ children }) => (
+                                        <p className="mb-2 text-[13px] text-slate-800">
+                                          {children}
+                                        </p>
+                                      ),
+                                      ul: ({ children }) => (
+                                        <ul className="list-disc pl-5 space-y-1 mb-2">
+                                          {children}
+                                        </ul>
+                                      ),
+                                      ol: ({ children }) => (
+                                        <ol className="list-decimal pl-5 space-y-1 mb-2">
+                                          {children}
+                                        </ol>
+                                      ),
+                                      li: ({ children }) => (
+                                        <li className="text-[13px] text-slate-800">
+                                          {children}
+                                        </li>
+                                      ),
+                                      blockquote: ({ children }) => (
+                                        <blockquote className="border-l-4 border-slate-300 pl-3 italic text-slate-600 text-[13px] mb-2">
+                                          {children}
+                                        </blockquote>
+                                      ),
+                                      table: ({ children }) => (
+                                        <div className="mb-3 overflow-x-auto">
+                                          <table className="w-full text-left text-[13px] border border-slate-200 rounded-lg overflow-hidden">
+                                            {children}
+                                          </table>
+                                        </div>
+                                      ),
+                                      thead: ({ children }) => (
+                                        <thead className="bg-slate-50 text-slate-900 font-semibold">
+                                          {children}
+                                        </thead>
+                                      ),
+                                      tbody: ({ children }) => (
+                                        <tbody className="divide-y divide-slate-200">
+                                          {children}
+                                        </tbody>
+                                      ),
+                                      th: ({ children }) => (
+                                        <th className="px-3 py-2 border-b border-slate-200">
+                                          {children}
+                                        </th>
+                                      ),
+                                      td: ({ children }) => (
+                                        <td className="px-3 py-2 align-top">
+                                          {children}
+                                        </td>
+                                      ),
                                       code({
                                         inline,
                                         className,
@@ -467,13 +629,13 @@ function App() {
                                       }) {
                                         if (inline) {
                                           return (
-                                            <code className="px-1 py-0.5 rounded bg-slate-100 text-[0.85em]">
+                                            <code className="px-1 py-0.5 rounded bg-slate-100 text-[0.85em] font-mono">
                                               {children}
                                             </code>
                                           );
                                         }
                                         return (
-                                          <pre className="rounded-lg bg-slate-900 text-slate-50 p-3 text-xs overflow-x-auto">
+                                          <pre className="rounded-lg bg-slate-950 text-slate-50 p-3 text-xs overflow-x-auto mb-3">
                                             <code {...props}>{children}</code>
                                           </pre>
                                         );
@@ -519,3 +681,4 @@ function App() {
 }
 
 export default App;
+
