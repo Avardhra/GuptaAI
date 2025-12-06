@@ -16,7 +16,7 @@ const groq = new Groq({
 
 const MODEL_OPTIONS = [
   // Chat umum
-  { value: "llama-3.1-8b-instant", label: "Cepat (Llama 3.1 8B)" },
+  { value: "gemini-3-pro-preview", label: "Gemini-3 Pro"},
   { value: "llama-3.3-70b-versatile", label: "Pintar (Llama 3.3 70B)" },
   { value: "openai/gpt-oss-20b", label: "GPT Ringan" },
   { value: "openai/gpt-oss-120b", label: "GPT Pro" },
