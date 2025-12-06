@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo Web Modern</title>
+
+  <!-- Tailwind CDN (versi terbaru) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Optional: Tambahkan konfigurasi Tailwind di sini -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',   /* biru Tailwind 500 */
+            accent: '#f59e0b',    /* kuning */
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+</head>
+
+<body class="font-sans bg-gray-50 text-gray-800">
+
+  <!-- ====================== NAVBAR ====================== -->
+  <header class="bg-white shadow-sm sticky top-0 z-10">
+    <nav class="container mx-auto flex items-center justify-between p-4">
+      <!-- Logo -->
+      <a href="#" class="text-2xl font-bold text-primary">
+        MySite
+      </a>
+
+      <!-- Menu Desktop -->
+      <ul class="hidden md:flex space-x-6 text-sm font-medium">
+        <li><a href="#home" class="hover:text-primary transition">Home</a></li>
+        <li><a href="#features" class="hover:text-primary transition">Features</a></li>
+        <li><a href="#pricing" class="hover:text-primary transition">Pricing</a></li>
+        <li><a href="#contact" class="hover:text-primary transition">Contact</a></li>
+      </ul>
+
+      <!-- Mobile button -->
+      <button id="mobileMenuBtn" class="md:hidden text-gray-600 focus:outline-none">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </button>
+    </nav>
+
+    <!-- Mobile Menu (hidden by default) -->
+    <div id="mobileMenu"
+         class="md:hidden hidden bg-white border-t border-gray-200">
+      <ul class="flex flex-col p-4 space-y-3 text-center">
+        <li><a href="#home" class="block py-2 hover:text-primary transition">Home</a></li>
+        <li><a href="#features" class="block py-2 hover:text-primary transition">Features</a></li>
+        <li><a href="#pricing" class="block py-2 hover:text-primary transition">Pricing</a></li>
+        <li><a href="#contact" class="block py-2 hover:text-primary transition">Contact</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- ====================== HERO SECTION ====================== -->
+  <section id="home"
+           class="bg-gradient-to-r from-primary to-indigo-600 text-white py-20">
+    <div class="container mx-auto text-center px-4">
+      <h1 class="text-4xl md:text-5xl font-extrabold mb-4">
+        Selamat Datang di MySite
+      </h1>
+      <p class="text-lg md:text-xl mb-8 max-w-2xl mx-auto">
+        Platform modern untuk menampilkan produk, layanan, atau portofolio kamu.
+        Ringan, responsif, dan mudah dikustomisasi.
+      </p>
+      <a href="#features"
+         class="inline-block bg-white text-primary font-semibold px-6 py-3 rounded-full shadow hover:bg-gray-100 transition">
+        Lihat Fitur
+      </a>
+    </div>
+  </section>
+
+  <!-- ====================== FEATURES ====================== -->
+  <section id="features"
+           class="container mx-auto py-16 px-4 grid gap-8 md:grid-cols-3">
+    <!-- Feature Card -->
+    <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-xl transition">
+      <svg class="w-12 h-12 mx-auto text-primary mb-4" fill="none"
+           stroke="currentColor" viewBox="0 0 24 24"
+           xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 8v4l3 3m6-7a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <h3 class="font-semibold text-xl mb-2">Desain Responsif</h3>
+      <p class="text-gray-600">
+        Tampilan otomatis menyesuaikan semua ukuran layar, dari ponsel sampai desktop.
+      </p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-xl transition">
+      <svg class="w-12 h-12 mx-auto text-primary mb-4" fill="none"
+           stroke="currentColor" viewBox="0 0 24 24"
+           xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12h6m2 0a2 2 0 100-4 2 2 0 000 4zM9 12a2 2 0 110-4 2 2 0 010 4z"></path>
+      </svg>
+      <h3 class="font-semibold text-xl mb-2">Kecepatan Tinggi</h3>
+      <p class="text-gray-600">
+        Menggunakan Tailwind yang sudah di‑optimize, halaman load dalam hitungan milidetik.
+      </p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-xl transition">
+      <svg class="w-12 h-12 mx-auto text-primary mb-4" fill="none"
+           stroke="currentColor" viewBox="0 0 24 24"
+           xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2-1.343-2-3-2zM12 14c-2.667 0-8 1.333-8 4v2h16v-2c0-2.667-5.333-4-8-4z"></path>
+      </svg>
+      <h3 class="font-semibold text-xl mb-2">Mudah Dikustom</h3>
+      <p class="text-gray-600">
+        Ganti warna, font, atau layout hanya dengan mengubah satu baris kode.
+      </p>
+    </div>
+  </section>
+
+  <!-- ====================== PRICING ====================== -->
+  <section id="pricing"
+           class="bg-gray-100 py-20">
+    <div class="container mx-auto text-center px-4">
+      <h2 class="text-3xl font-bold mb-8">Paket Harga</h2>
+      <div class="grid gap-8 md:grid-cols-3 max-w-5xl mx-auto">
+        <!-- Gratis -->
+        <div class="bg-white rounded-xl shadow-md p-8">
+          <h3 class="text-xl font-semibold mb-4">Gratis</h3>
+          <p class="text-4xl font-bold text-primary mb-6">$0<span class="text-base font-medium">/bln</span></p>
+          <ul class="text-left space-y-2 mb-6">
+            <li>✔️ Fitur dasar</li>
+            <li>✔️ Dukungan komunitas</li>
+            <li>❌ Tanpa analytics</li>
+          </ul>
+          <button class="w-full bg-primary text-white py-2 rounded-md hover:bg-blue-600 transition">
+            Mulai Sekarang
+          </button>
+        </div>
+
+        <!-- Pro -->
+        <div class="bg-white rounded-xl shadow-xl p-8 border-4 border-primary">
+          <h3 class="text-xl font-semibold mb-4">Pro</h3>
+          <p class="text-4xl font-bold text-primary mb-6">$19<span class="text-base font-medium">/bln</span></p>
+          <ul class="text-left space-y-2 mb-6">
+            <li>✔️ Semua fitur Gratis</li>
+            <li>✔️ Analytics lengkap</li>
+            <li>✔️ Support 24/7</li>
+          </ul>
+          <button class="w-full bg-primary text-white py-2 rounded-md hover:bg-blue-600 transition">
+            Pilih Pro
+          </button>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="bg-white rounded-xl shadow-md p-8">
+          <h3 class="text-xl font-semibold mb-4">Enterprise</h3>
+          <p class="text-4xl font-bold text-primary mb-6">Hubungi Kami</p>
+          <ul class="text-left space-y-2 mb-6">
+            <li>✔️ Solusi kustom</li>
+            <li>✔️ SLA khusus</li>
+            <li>✔️ Integrasi API</li>
+          </ul>
+          <button class="w-full bg-primary text-white py-2 rounded-md hover:bg-blue-600 transition">
+            Kontak Sales
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== TESTIMONIALS ====================== -->
+  <section class="container mx-auto py-20 px-4">
+    <h2 class="text-3xl font-bold text-center mb-12">Apa Kata Mereka?</h2>
+
+    <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+      <!-- Card 1 -->
+      <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition">
+        <p class="text-gray-600 mb-4">
+          “Desainnya bersih, loading cepat, dan sangat mudah dikustomisasi. Recommended banget!”
+        </p>
+        <div class="flex items-center">
+          <img src="https://i.pravatar.cc/40?img=1"
+               alt="User 1"
+               class="w-10 h-10 rounded-full mr-3">
+          <div>
+            <p class="font-semibold">Rina S.</p>
+            <p class="text-sm text-gray-500">Designer</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition">
+        <p class="text-gray-600 mb-4">
+          “Integrasinya dengan backend sangat mulus. Dokumentasi lengkap, tidak ada yang bikin frustasi.”
+        </p>
+        <div class="flex items-center">
+          <img src="https://i.pravatar.cc/40?img=2"
+               alt="User 2"
+               class="w-10 h-10 rounded-full mr-3">
+          <div>
+            <p class="font-semibold">Budi H.</p>
+            <p class="text-sm text-gray-500">Full‑Stack Dev</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition">
+        <p class="text-gray-600 mb-4">
+          “Kualitas UI yang modern membuat klien saya terkesan. Proses development jadi lebih cepat.”
+        </p>
+        <div class="flex items-center">
+          <img src="https://i.pravatar.cc/40?img=3"
+               alt="User 3"
+               class="w-10 h-10 rounded-full mr-3">
+          <div>
+            <p class="font-semibold">Dewi A.</p>
+            <p class="text-sm text-gray-500">Project Manager</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== CONTACT FORM ====================== -->
+  <section id="contact"
+           class="bg-primary text-white py-20">
+    <div class="container mx-auto px-4 text-center">
+      <h2 class="text-3xl font-bold mb-6">Hubungi Kami</h2>
+      <p class="mb-8 max-w-xl mx-auto">
+        Punya pertanyaan, ingin demo, atau butuh bantuan? Isi form di bawah ini, kami akan menghubungi Anda kembali.
+      </p>
+
+      <form class="max-w-lg mx-auto space-y-4 text-left">
+        <input type="text" placeholder="Nama lengkap"
+               class="w-full rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-accent" required>
+        <input type="email" placeholder="Email"
+               class="w-full rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-accent" required>
+        <textarea rows="4" placeholder="Pesan Anda"
+                  class="w-full rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-accent" required></textarea>
+        <button type="submit"
+                class="w-full bg-accent text-white py-2 rounded-md hover:bg-yellow-600 transition">
+          Kirim Pesan
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ====================== FOOTER ====================== -->
+  <footer class="bg-gray-900 text-gray-300 py-8">
+    <div class="container mx-auto px-4 grid md:grid-cols-3 gap-8">
+      <div>
+        <h4 class="text-white font-semibold mb-3">MySite</h4>
+        <p>Platform modern untuk menampilkan produk dan layanan Anda dengan tampilan yang bersih dan responsif.</p>
+      </div>
+
+      <div>
+        <h4 class="text-white font-semibold mb-3">Navigasi</h4>
+        <ul class="space-y-2">
+          <li><a href="#home" class="hover:text-white transition">Home</a></li>
+          <li><a href="#features" class="hover:text-white transition">Features</a></li>
+          <li><a href="#pricing" class="hover:text-white transition">Pricing</a></li>
+          <li><a href="#contact" class="hover:text-white transition">Contact</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="text-white font-semibold mb-3">Sosial Media</h4>
+        <div class="flex space-x-4">
+          <a href="#" class="hover:text-white transition">
+            <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M22.46 6c-.77.34-1.6.57-2.46.67a4.3 4.3 0 001.88-2.38 8.53 8.53 0 01-2.71 1.04 4.26 4.26 0 00-7.27 3.88A12.1 12.1 0 013 4.86a4.25 4.25 0 001.32 5.68c-.66-.02-1.28-.2-1.82-.5v.05c0 2.03 1.44 3.73 3.35 4.11-.35.1-.73.15-1.11.15-.27 0-.53-.03-.78-.07.53 1.66 2.07 2.87 3.89 2.9a8.55 8.55 0 01-5.3 1.83c-.34 0-.68-.02-1.01-.06a12.07 12.07 0 006.55 1.92c7.86 0 12.16-6.51 12.16-12.16 0-.19-.01-.37-.02-.55.84-.61 1.56-1.38 2.13-2.25z"/></svg>
+          </a>
+          <a href="#" class="hover:text-white transition">
+            <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 2.04c-5.5 0-9.96 4.46-9.96 9.96 0 4.4 2.86 8.13 6.84 9.45.5.09.68-.22.68-.48 0-.24-.01-.87-.01-1.71-2.78.6-3.36-1.34-3.36-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.04 1.53 1.04 1 1.73 2.63 1.23 3.28.94.1-.73.35-1.23.64-1.51-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 012.5-.34c.85.004 1.71.115 2.5.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.02 1.6 1.02 2.69 0 3.86-2.34 4.7-4.57 4.95.36.31.68.92.68 1.86 0 1.34-.01 2.42-.01 2.75 0 .27.18.58.69.48A9.96 9.96 0 0022 12c0-5.5-4.46-9.96-9.96-9.96z"/></svg>
+          </a>
+          <a href="#" class="hover:text-white transition">
+            <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M19 0H5c-2.8 0-5 2.2-5 5v14c0 2.8 2.2 5 5 5h14c2.8 0 5-2.2 5-5V5c0-2.8-2.2-5-5-5zM9.6 20.5H6.7V9h2.9v11.5zm-1.45-13c-.9 0-1.63-.73-1.63-1.63S7.26 4.24 8.15 4.24s1.63.73 1.63 1.63-.73 1.63-1.63 1.63zm13.85 13h-2.9v-5.6c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94V20.5h-2.9V9h2.78v1.57h.04c.39-.74 1.34-1.52 2.76-1.52 2.95 0 3.5 1.94 3.5 4.46V20.5z"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-8 text-sm">
+      © 2025 MySite. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- ====================== JS (Mobile Menu) ====================== -->
+  <script>
+    const btn = document.getElementById('mobileMenuBtn');
+    const menu = document.getElementById('mobileMenu');
+
+    btn.addEventListener('click', () => {
+      menu.classList.toggle('hidden');
+    });
+  </script>
+</body>
+</html>

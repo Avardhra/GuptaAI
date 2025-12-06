@@ -195,6 +195,11 @@ function App() {
 
   // flag untuk bedakan long press vs short click
   const isLongPressRef = useRef(false);
+  // 
+  const [tokenUsage, setTokenUsage] = useState({
+    totalRequests: 0,
+    estimatedTokens: 0,
+  });
 
   // tab popup
   const [showTabPopup, setShowTabPopup] = useState(false);
@@ -396,7 +401,7 @@ function App() {
         clearInterval(interval);
         setTypingMessageIndex(null);
       }
-    }, 2);
+    }, 1);
 
     return () => clearInterval(interval);
   }, [typingMessageIndex, messages]);
@@ -513,6 +518,7 @@ function App() {
           model === "whisper-large-v3-turbo"
             ? "whisper-large-v3-turbo"
             : "whisper-large-v3";
+
         const transcript = await transcribeAudioWithGroq(
           attachedFile,
           whisperModel
@@ -557,7 +563,7 @@ function App() {
     if (cached && !attachedImageBase64) {
       const aiMsg = {
         role: "assistant",
-        content: cached.text, // <- ambil string markdown-nya
+        content: cached.text,
         time: Date.now(),
       };
       setMessages((prev) => [...prev, aiMsg]);
@@ -572,8 +578,21 @@ function App() {
         model,
         historyForApi.concat(userMsg),
         attachedImageBase64,
-        personaKey          // <- kirim persona yang aktif
+        personaKey
       );
+
+      // === ESTIMASI TOKEN ===
+      const promptLength = userMsgContent.length;
+      const replyLength = ai.length;
+      const estimatedTokens = Math.round(
+        (promptLength + replyLength) / 4 // kira‑kira 4 karakter per token
+      );
+      setTokenUsage((prev) => ({
+        totalRequests: prev.totalRequests + 1,
+        estimatedTokens: prev.estimatedTokens + estimatedTokens,
+      }));
+      // =======================
+
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
       setMessages((prev) => {
         const next = [...prev, aiMsg];
@@ -597,6 +616,7 @@ function App() {
       resetAttachment();
     }
   };
+
 
 
   const handleSubmit = (e) => {
@@ -993,6 +1013,27 @@ function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {/* token req */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">
+                  Pemakaian Token (Perkiraan)
+                </h3>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700 space-y-1">
+                  <p>
+                    Total request:{" "}
+                    <span className="font-semibold">{tokenUsage.totalRequests}</span>
+                  </p>
+                  <p>
+                    Estimasi token terpakai:{" "}
+                    <span className="font-semibold">{tokenUsage.estimatedTokens}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Angka ini hanya perkiraan berdasarkan panjang teks, bukan data resmi
+                    dari Groq.
+                  </p>
+                </div>
+              </section>
+
               {/* AKUN */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">
@@ -1082,8 +1123,8 @@ function App() {
                           }
                         }}
                         className={`w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px] transition-all ${active
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                       >
                         <span>{value.label}</span>
