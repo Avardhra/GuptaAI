@@ -311,3 +311,41 @@ pre::-webkit-scrollbar-thumb {
     overflow-x: hidden;
   }
 }
+
+@keyframes float-soft {
+  0% {
+    transform: translateY(30px) scale(0.9);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(-40px) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-70px) scale(1);
+    opacity: 0;
+  }
+}
+
+.animate-float-soft {
+  animation-name: float-soft;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes pulse-slow {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2.6s ease-in-out infinite;
+}

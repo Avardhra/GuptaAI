@@ -147,6 +147,34 @@ const transcribeAudioWithGroq = async (
 
   return transcription.text;
 };
+// 
+const getRelationshipDuration = () => {
+  // Tanggal mulai hubungan
+  const start = new Date(2024, 8, 9); // 9 September 2024 (bulan 8 karena 0 = Januari)
+  const now = new Date();
+
+  let years = now.getFullYear() - start.getFullYear();
+  let months = now.getMonth() - start.getMonth();
+  let days = now.getDate() - start.getDate();
+
+  // Jika hari negatif → pinjam hari dari bulan sebelumnya
+  if (days < 0) {
+    const lastMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    days += lastMonthDays;
+    months -= 1;
+  }
+
+  // Jika bulan negatif → pinjam tahun
+  if (months < 0) {
+    months += 12;
+    years -= 1;
+  }
+
+  // Total hari
+  const totalDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+
+  return { years, months, days, totalDays };
+};
 
 // ==== APP ====
 function App() {
@@ -192,6 +220,8 @@ function App() {
   const [fileMenuPos, setFileMenuPos] = useState({ x: 0, y: 0 });
   const fileLongPressRef = useRef(null);
   const fileInputRef = useRef(null);
+  // 
+  const [showLovePopup, setShowLovePopup] = useState(false);
 
   // flag untuk bedakan long press vs short click
   const isLongPressRef = useRef(false);
@@ -549,6 +579,11 @@ function App() {
     const userMsgContent = attachedImageBase64
       ? text || "Jelaskan isi gambar ini secara singkat."
       : text;
+    // kalau user menyebut Nivalesha → munculkan popup love
+    if (userMsgContent.toLowerCase().includes("nivalesha")) {
+      setShowLovePopup(true);
+      // popup nanti bisa ditutup manual oleh user
+    }
 
     const userMsg = {
       role: "user",
@@ -767,6 +802,7 @@ function App() {
     if (inputMode === "voice") return "Voice";
     return "";
   };
+const duration = getRelationshipDuration();
 
   return (
     <div className="h-screen bg-slate-100">
@@ -1604,6 +1640,77 @@ function App() {
           </div>
         </div>
       </main>
+      {/*  */}
+{showLovePopup && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-pink-100/90 backdrop-blur-md">
+    {/* Partikel love & bunga */}
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {[...Array(45)].map((_, i) => {
+        const delay = Math.random() * 4;
+        const durationAnim = 6 + Math.random() * 4;
+        const left = Math.random() * 100;
+        const size = 12 + Math.random() * 20;
+        const isHeart = Math.random() > 0.35;
+        return (
+          <div
+            key={i}
+            className="absolute animate-float-soft"
+            style={{
+              left: `${left}%`,
+              top: `${Math.random() * 100}%`,
+              animationDelay: `${delay}s`,
+              animationDuration: `${durationAnim}s`,
+              fontSize: `${size}px`,
+            }}
+          >
+            <span className="drop-shadow-[0_0_8px_rgba(244,114,182,0.7)]">
+              {isHeart ? "💗" : "🌸"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+
+    {/* Konten utama */}
+    <div className="relative z-10 flex flex-col items-center text-center px-6">
+      {/* Ikon hati Boxicons */}
+      <div className="flex items-center justify-center w-32 h-32 rounded-[40px] bg-pink-400 shadow-[0_25px_60px_rgba(219,39,119,0.55)]">
+        <i className="bx bxs-heart text-[70px] text-pink-100 drop-shadow-[0_0_20px_rgba(248,250,252,0.9)] animate-pulse-slow"></i>
+      </div>
+
+      <h2 className="mt-4 text-2xl font-bold text-pink-900">
+        Untuk Nivalesha 💖✨
+      </h2>
+      <p className="mt-3 max-w-md text-sm text-pink-900/80">
+        Setiap kali nama Nivalesha muncul, GuptaAI ikut merayakan cinta
+        yang lahir dari Niken dan Valendra. Semoga ceritanya selalu indah
+        dan penuh bunga. 🌸
+      </p>
+
+      <p className="mt-3 text-xs text-pink-900/70">
+        Sudah berjalan{" "}
+        <span className="font-semibold">
+          {duration.years} tahun {duration.months} bulan {duration.days} hari
+        </span>{" "}
+        sejak 9 November 2024{" "}
+        <span className="font-semibold">
+          ({duration.totalDays} hari penuh cinta)
+        </span>
+        . 💫
+      </p>
+
+      <button
+        type="button"
+        onClick={() => setShowLovePopup(false)}
+        className="mt-7 px-5 py-2 rounded-full bg-white text-pink-700 text-xs font-semibold shadow-[0_10px_25px_rgba(244,114,182,0.5)] hover:bg-pink-50"
+      >
+        Tutup
+      </button>
+    </div>
+  </div>
+)}
+
+
       {/*  */}
       {toast.show && (
         <div className="fixed bottom-4 right-4 z-[9999]">
