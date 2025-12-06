@@ -878,9 +878,6 @@ function App() {
               <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
                 G
               </div>
-              <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] px-1.5 py-0.5 shadow">
-                AI
-              </span>
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -893,7 +890,7 @@ function App() {
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Asisten AI dari Avardhra Group
+                Asisten AI pribadi berbasis Groq AI
               </p>
             </div>
           </div>
@@ -1383,7 +1380,11 @@ function App() {
                                           <div className="code-block">
                                             {/* Header */}
                                             <div className="code-block-header">
-                                              <span className="code-block-title">Kode</span>
+                                              <div className="flex gap-3">
+                                                <span className="code-block-title-red"></span>
+                                              <span className="code-block-title-yellow"></span>
+                                              <span className="code-block-title-green"></span>
+                                              </div>
 
                                               {/* Tombol copy SELALU tampil */}
                                               <button
