@@ -85,7 +85,10 @@ const requestToGroqAi = async (content, model, history, imageBase64) => {
 // jawaban lokal
 const localAnswer = (text) => {
   const lower = text.toLowerCase();
-if (lower.includes("gede valendra")) {
+if (
+  lower.includes("gede valendra" ||
+    lower.includes("valendra")
+  )) {
   return (
     "## Gede Valendra\n\n" +
     "**Gede Valendra** adalah founder **GuptaAI** dan **JejasataLampung**.\n\n" +
@@ -373,7 +376,7 @@ function App() {
         clearInterval(interval);
         setTypingMessageIndex(null);
       }
-    }, 4);
+    }, 2);
 
     return () => clearInterval(interval);
   }, [typingMessageIndex, messages]);
