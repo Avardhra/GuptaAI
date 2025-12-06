@@ -1362,9 +1362,7 @@ function App() {
                                   <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                      // jangan hapus pre sepenuhnya, cukup kembalikan children-nya saja
                                       pre({ children }) {
-                                        // ini menghindari double <pre> tapi tetap mempertahankan konten
                                         return <>{children}</>;
                                       },
 
@@ -1373,7 +1371,6 @@ function App() {
                                         const codeString = String(children).replace(/\n$/, "");
                                         const lang = match ? match[1] : "text";
 
-                                        // inline code
                                         if (inline) {
                                           return (
                                             <code className={`inline-code ${className || ""}`} {...props}>
@@ -1382,31 +1379,31 @@ function App() {
                                           );
                                         }
 
-                                        // block code
                                         return (
                                           <div className="code-block">
                                             {/* Header */}
                                             <div className="code-block-header">
                                               <span className="code-block-title">Kode</span>
-                                            </div>
 
-                                            <div className="relative group">
-                                              {/* Tombol Copy */}
+                                              {/* Tombol copy SELALU tampil */}
                                               <button
                                                 type="button"
                                                 onClick={() => copyText(codeString)}
-                                                className="absolute right-2 top-2 z-10 hidden items-center gap-1 rounded-full bg-slate-900/80 px-2 py-1 text-[10px] text-white shadow-sm group-hover:flex"
+                                                className="code-block-copy"
                                               >
                                                 <i className="bx bx-copy text-xs" />
                                                 <span>Salin kode</span>
                                               </button>
+                                            </div>
 
-                                              {/* Syntax Highlighter */}
+                                            {/* Area kode */}
+                                            <div className="w-full max-w-full overflow-x-auto">
                                               <SyntaxHighlighter
                                                 style={oneDark}
                                                 language={lang}
-                                                PreTag="div"
-                                                className="rounded-xl text-xs !bg-[#111827] !p-3 overflow-x-auto"
+                                                PreTag="pre"
+                                                wrapLongLines={true}
+                                                className="min-w-0 max-w-full"
                                                 {...props}
                                               >
                                                 {codeString}
@@ -1420,6 +1417,8 @@ function App() {
                                     {displayContent}
                                   </ReactMarkdown>
                                 </div>
+
+
                               )}
                             </div>
                             {!isUser && (
