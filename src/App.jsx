@@ -89,10 +89,11 @@ const requestToGroqAi = async (content, model, history, imageBase64, personaKey 
 // jawaban lokal
 const localAnswer = (text) => {
   const lower = text.toLowerCase();
+
   if (
-    lower.includes("gede valendra" ||
-      lower.includes("valendra")
-    )) {
+    lower.includes("gede valendra") ||
+    lower.includes("valendra")
+  ) {
     return (
       "## Gede Valendra\n\n" +
       "**Gede Valendra** adalah founder **GuptaAI** dan **JejasataLampung**.\n\n" +
@@ -125,6 +126,7 @@ const localAnswer = (text) => {
 
   return null;
 };
+
 
 // speech-to-text (Whisper)
 const transcribeAudioWithGroq = async (
@@ -598,7 +600,7 @@ function App() {
     if (cached && !attachedImageBase64) {
       const aiMsg = {
         role: "assistant",
-        content: cached.text,
+        content: cached,
         time: Date.now(),
       };
       setMessages((prev) => [...prev, aiMsg]);
