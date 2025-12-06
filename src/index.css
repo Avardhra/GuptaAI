@@ -259,35 +259,58 @@ pre::-webkit-scrollbar-thumb {
 .prose pre {
   overflow-x: auto !important;
 }
-/* Heading + teks markdown (sudah mirip) */
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3 {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  font-weight: 700;
-  color: #0f172a;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-}
-
+/* Ukuran heading & teks dasar */
 .markdown-body h1 {
-  font-size: 1.15rem;
+  font-size: 1.35rem;
 }
-
 .markdown-body h2 {
+  font-size: 1.2rem;
+}
+.markdown-body h3 {
   font-size: 1.05rem;
 }
-
-.markdown-body h3 {
+.markdown-body h4 {
   font-size: 0.95rem;
 }
-
+.markdown-body h5 {
+  font-size: 0.9rem;
+}
+.markdown-body h6 {
+  font-size: 0.85rem;
+}
 .markdown-body p,
 .markdown-body ul,
 .markdown-body ol {
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
 }
+
+/* Versi mobile: sedikit lebih kecil */
+@media (max-width: 640px) {
+  .markdown-body h1 {
+    font-size: 1.15rem;
+  }
+  .markdown-body h2 {
+    font-size: 1.05rem;
+  }
+  .markdown-body h3 {
+    font-size: 0.95rem;
+  }
+  .markdown-body h4 {
+    font-size: 0.9rem;
+  }
+  .markdown-body h5 {
+    font-size: 0.85rem;
+  }
+  .markdown-body h6 {
+    font-size: 0.8rem;
+  }
+  .markdown-body p,
+  .markdown-body ul,
+  .markdown-body ol {
+    font-size: 0.85rem;
+  }
+}
+
 
 /* Link di dalam markdown – biar jelas kayak GPT */
 .markdown-body a {

@@ -431,7 +431,7 @@ function App() {
         clearInterval(interval);
         setTypingMessageIndex(null);
       }
-    }, 0.50);
+    }, 0.10);
 
     return () => clearInterval(interval);
   }, [typingMessageIndex, messages]);
