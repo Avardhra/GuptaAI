@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import kepribadian from "../config/kepribadian.json";
 
 const GUPTA_API = import.meta.env.VITE_AVARDHRA;
@@ -29,7 +31,10 @@ const MODEL_OPTIONS = [
 
   // Model lain
   { value: "meta-llama/llama-4-maverick-17b-128k", label: "Llama 4 Maverick" },
-  { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout" },
+  {
+    value: "meta-llama/llama-4-scout-17b-16e-instruct",
+    label: "Llama 4 Scout",
+  },
   { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2" },
   { value: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 (baru)" },
 
@@ -90,7 +95,10 @@ const localAnswer = (text) => {
 };
 
 // speech-to-text (Whisper)
-const transcribeAudioWithGroq = async (file, whisperModel = "whisper-large-v3") => {
+const transcribeAudioWithGroq = async (
+  file,
+  whisperModel = "whisper-large-v3"
+) => {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
 
@@ -157,12 +165,27 @@ function App() {
 
   // tab popup
   const [showTabPopup, setShowTabPopup] = useState(false);
+  // 
+  // state untuk toast
+  const [toast, setToast] = useState({ show: false, message: "", type: "info" });
+
+  const showToast = (message, type = "info", timeout = 1800) => {
+    setToast({ show: true, message, type });
+    if (timeout) {
+      setTimeout(() => {
+        setToast((t) => ({ ...t, show: false }));
+      }, timeout);
+    }
+  };
+
 
   // per-tab session
   const [sessionId] = useState(() => {
     const existing = sessionStorage.getItem("gupta_session_id");
     if (existing) return existing;
-    const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const id = `session_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
     sessionStorage.setItem("gupta_session_id", id);
     return id;
   });
@@ -170,8 +193,10 @@ function App() {
   const autoClearTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  const storageKeyFor = (email) => `gupta_chat_history_${email || "guest"}`;
-  const sessionKeyFor = (email) => `gupta_chat_session_${email || "guest"}_${sessionId}`;
+  const storageKeyFor = (email) =>
+    `gupta_chat_history_${email || "guest"}`;
+  const sessionKeyFor = (email) =>
+    `gupta_chat_session_${email || "guest"}_${sessionId}`;
 
   // INIT
   useEffect(() => {
@@ -196,7 +221,8 @@ function App() {
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
   const closeTabPopup = () => {
@@ -254,21 +280,25 @@ function App() {
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    return () =>
+      window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [messages, user]);
 
   // AUTO CLEAR PER TAB
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        if (autoClearTimeoutRef.current) clearTimeout(autoClearTimeoutRef.current);
+        if (autoClearTimeoutRef.current)
+          clearTimeout(autoClearTimeoutRef.current);
         autoClearTimeoutRef.current = setTimeout(() => {
           try {
             const email = user?.email || "guest";
             const key = storageKeyFor(email);
             if (messages && messages.length > 0) {
               localStorage.setItem(key, JSON.stringify(messages));
-              setHistoryList(JSON.parse(JSON.stringify(messages)));
+              setHistoryList(
+                JSON.parse(JSON.stringify(messages))
+              );
             }
           } catch (e) {
             console.error("auto clear backup fail", e);
@@ -288,14 +318,18 @@ function App() {
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
-      if (autoClearTimeoutRef.current) clearTimeout(autoClearTimeoutRef.current);
+      if (autoClearTimeoutRef.current)
+        clearTimeout(autoClearTimeoutRef.current);
     };
   }, [messages, user, sessionId]);
 
   // AUTO SCROLL
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      messagesEndRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     }
   }, [messages, loading]);
 
@@ -320,13 +354,40 @@ function App() {
   }, [typingMessageIndex, messages]);
 
   const copyText = async (text) => {
+    if (!text) {
+      showToast("Tidak ada teks yang bisa disalin.", "error");
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(text);
-      alert("Teks disalin.");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        showToast("Teks berhasil disalin ke clipboard.", "success");
+        return;
+      }
+
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+
+      if (ok) {
+        showToast("Teks berhasil disalin ke clipboard.", "success");
+      } else {
+        showToast("Gagal menyalin teks.", "error");
+      }
     } catch (e) {
       console.error("copy fail", e);
+      showToast("Browser memblokir akses clipboard.", "error");
     }
   };
+
+
 
   const shareConversation = async () => {
     if (!messages || messages.length === 0) return;
@@ -344,8 +405,7 @@ function App() {
       }
     } else {
       try {
-        await navigator.clipboard.writeText(shareText);
-        alert("Percakapan disalin ke clipboard.");
+        await copyText(shareText);
       } catch (e) {
         console.error("copy convo fail", e);
       }
@@ -402,9 +462,16 @@ function App() {
       setLoading(true);
       try {
         const whisperModel =
-          model === "whisper-large-v3-turbo" ? "whisper-large-v3-turbo" : "whisper-large-v3";
-        const transcript = await transcribeAudioWithGroq(attachedFile, whisperModel);
-        text = text ? `${text}\n\nTranskrip audio:\n${transcript}` : transcript;
+          model === "whisper-large-v3-turbo"
+            ? "whisper-large-v3-turbo"
+            : "whisper-large-v3";
+        const transcript = await transcribeAudioWithGroq(
+          attachedFile,
+          whisperModel
+        );
+        text = text
+          ? `${text}\n\nTranskrip audio:\n${transcript}`
+          : transcript;
       } catch (err) {
         console.error("transcribe error:", err);
         setMessages((prev) => [
@@ -525,7 +592,9 @@ function App() {
         users.push({ name, email, password });
         localStorage.setItem("gupta_users", JSON.stringify(users));
       } else {
-        const found = users.find((u) => u.email === email && u.password === password);
+        const found = users.find(
+          (u) => u.email === email && u.password === password
+        );
         if (!found) {
           alert("Email atau password salah");
           return;
@@ -575,7 +644,9 @@ function App() {
   const startRecording = async () => {
     if (isRecording) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
       const mediaRecorder = new MediaRecorder(stream);
       recordedChunksRef.current = [];
 
@@ -586,8 +657,12 @@ function App() {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
-        const file = new File([blob], "recording.webm", { type: "audio/webm" });
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "audio/webm",
+        });
+        const file = new File([blob], "recording.webm", {
+          type: "audio/webm",
+        });
         setAttachedFile(file);
         setAttachedImageBase64(null);
       };
@@ -604,7 +679,9 @@ function App() {
   const stopRecording = () => {
     if (!isRecording || !mediaRecorderRef.current) return;
     mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+    mediaRecorderRef.current.stream
+      .getTracks()
+      .forEach((t) => t.stop());
     mediaRecorderRef.current = null;
     setIsRecording(false);
   };
@@ -623,10 +700,13 @@ function App() {
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white px-5 mx-6 rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-1">
-              {loginMode === "login" ? "Masuk ke GuptaAI" : "Daftar Akun GuptaAI"}
+              {loginMode === "login"
+                ? "Masuk ke GuptaAI"
+                : "Daftar Akun GuptaAI"}
             </h2>
             <p className="text-xs text-slate-500 mb-4">
-              Akun disimpan di browser (localStorage) dan bisa disambungkan ke backend nanti.
+              Akun disimpan di browser (localStorage) dan bisa disambungkan
+              ke backend nanti.
             </p>
 
             <div className="flex mb-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px]">
@@ -655,7 +735,9 @@ function App() {
             <form onSubmit={handleAuthSubmit} className="space-y-3">
               {loginMode === "signup" && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Nama</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Nama
+                  </label>
                   <input
                     name="name"
                     type="text"
@@ -666,7 +748,9 @@ function App() {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Email
+                </label>
                 <input
                   name="email"
                   type="email"
@@ -676,7 +760,9 @@ function App() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Password</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Password
+                </label>
                 <input
                   name="password"
                   type="password"
@@ -741,14 +827,20 @@ function App() {
                     <div className="text-[12px] font-medium mb-1">
                       {m.role === "user" ? "Anda" : "GuptaAI"}
                     </div>
-                    <div className="text-sm whitespace-pre-wrap">{m.content}</div>
+                    <div className="text-sm whitespace-pre-wrap">
+                      {m.content}
+                    </div>
                     <div className="text-[10px] text-slate-400 mt-1">
-                      {m.time ? new Date(m.time).toLocaleString() : ""}
+                      {m.time
+                        ? new Date(m.time).toLocaleString()
+                        : ""}
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">Tidak ada riwayat.</p>
+                <p className="text-sm text-slate-500">
+                  Tidak ada riwayat.
+                </p>
               )}
             </div>
           </div>
@@ -759,9 +851,12 @@ function App() {
       {showTabPopup && (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5">
-            <h2 className="text-sm font-semibold text-slate-900 mb-2">Selamat datang kembali</h2>
+            <h2 className="text-sm font-semibold text-slate-900 mb-2">
+              Selamat datang kembali
+            </h2>
             <p className="text-xs text-slate-500 mb-4">
-              Kamu barusan kembali ke tab ini. Popup ini tidak akan muncul lagi setelah ditutup.
+              Kamu barusan kembali ke tab ini. Popup ini tidak akan muncul
+              lagi setelah ditutup.
             </p>
             <div className="flex justify-end">
               <button
@@ -789,13 +884,17 @@ function App() {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-slate-900">GuptaAI</span>
+                <span className="text-sm font-semibold text-slate-900">
+                  GuptaAI
+                </span>
                 <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 border border-emerald-100">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1" />
                   Online
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Asisten AI dari Avardhra Group</p>
+              <p className="text-xs text-slate-500">
+                Asisten AI dari Avardhra Group
+              </p>
             </div>
           </div>
 
@@ -826,14 +925,13 @@ function App() {
             onClick={() => setShowSidebar(false)}
           />
           <aside
-            className={`
-              w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
-              transform transition-transform duration-300 ease-out
-              ${showSidebar ? "translate-x-0" : "translate-x-full"}
-            `}
+            className={`w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col transform transition-transform duration-300 ease-out ${showSidebar ? "translate-x-0" : "translate-x-full"
+              }`}
           >
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-slate-900">GuptaAI</h2>
+              <h2 className="text-sm font-semibold text-slate-900">
+                GuptaAI
+              </h2>
               <button
                 onClick={() => setShowSidebar(false)}
                 className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -845,7 +943,9 @@ function App() {
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {/* AKUN */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 mb-2">Akun</h3>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">
+                  Akun
+                </h3>
                 {user ? (
                   <div className="space-y-1 text-sm text-slate-700">
                     <div className="flex items-center gap-2 mb-2">
@@ -854,11 +954,14 @@ function App() {
                       </span>
                       <div>
                         <p className="font-medium">{user.name}</p>
-                        <p className="text-[11px] text-slate-500">{user.email}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {user.email}
+                        </p>
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Riwayat chat tersimpan di perangkat ini berdasarkan email.
+                      Riwayat chat tersimpan di perangkat ini berdasarkan
+                      email.
                     </p>
                     <button
                       type="button"
@@ -871,7 +974,8 @@ function App() {
                 ) : (
                   <div className="space-y-2 space-x-2">
                     <p className="text-xs text-slate-500">
-                      Kamu belum login. Masuk atau daftar untuk menyimpan riwayat per email.
+                      Kamu belum login. Masuk atau daftar untuk menyimpan
+                      riwayat per email.
                     </p>
                     <button
                       type="button"
@@ -896,7 +1000,8 @@ function App() {
                       Daftar
                     </button>
                     <p className="text-[11px] text-slate-400">
-                      Jika tidak login, riwayat akan tersimpan sebagai guest.
+                      Jika tidak login, riwayat akan tersimpan sebagai
+                      guest.
                     </p>
                   </div>
                 )}
@@ -904,26 +1009,28 @@ function App() {
 
               {/* MODEL */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">
+                  Model AI
+                </h3>
                 <button
                   type="button"
                   onClick={() => setModelOpen((v) => !v)}
-                  className="
-                    w-full flex items-center justify-between rounded-xl border border-slate-200
-                    bg-white px-3 py-2 text-left text-xs text-slate-700
-                    hover:bg-slate-50 transition-colors
-                  "
+                  className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">
-                      {MODEL_OPTIONS.find((m) => m.value === model)?.label.charAt(0) ?? "M"}
+                      {MODEL_OPTIONS.find((m) => m.value === model)?.label.charAt(
+                        0
+                      ) ?? "M"}
                     </span>
                     <div className="flex flex-col">
                       <span className="font-medium">
-                        {MODEL_OPTIONS.find((m) => m.value === model)?.label ?? "Pilih model"}
+                        {MODEL_OPTIONS.find((m) => m.value === model)?.label ??
+                          "Pilih model"}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        Klik untuk {modelOpen ? "menyembunyikan" : "mengganti"} model
+                        Klik untuk {modelOpen ? "menyembunyikan" : "mengganti"}{" "}
+                        model
                       </span>
                     </div>
                   </div>
@@ -945,14 +1052,10 @@ function App() {
                             localStorage.setItem("gupta_model", m.value);
                             setModelOpen(false);
                           }}
-                          className={`
-                            w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px]
-                            transition-all duration-150
-                            ${active
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                            }
-                          `}
+                          className={`w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px] transition-all duration-150 ${active
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
                         >
                           <span>{m.label}</span>
                           {active && (
@@ -967,13 +1070,16 @@ function App() {
                   </div>
                 )}
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Pilih model teks biasa atau model vision/audio sesuai kebutuhan.
+                  Pilih model teks biasa atau model vision/audio sesuai
+                  kebutuhan.
                 </p>
               </section>
 
               {/* HISTORY */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">
+                  Riwayat Chat
+                </h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={openHistory}
@@ -1063,7 +1169,10 @@ function App() {
                   : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                   }`}
               >
-                <i className={`bx ${isRecording ? "bx-stop" : "bx-microphone"} text-lg`} />
+                <i
+                  className={`bx ${isRecording ? "bx-stop" : "bx-microphone"
+                    } text-lg`}
+                />
               </button>
             )}
 
@@ -1119,24 +1228,26 @@ function App() {
 
           <div className="flex-1 flex flex-col gap-1">
             {/* preview image */}
-            {attachedFile && attachedFile.type.startsWith("image/") && filePreviewUrl && (
-              <div className="mb-1 rounded-xl border border-slate-200 bg-slate-50 p-2 flex items-start justify-between gap-2">
-                <div className="flex-1 text-xs text-slate-700">
-                  <img
-                    src={filePreviewUrl}
-                    alt="preview"
-                    className="max-h-32 rounded-lg object-contain bg-white"
-                  />
+            {attachedFile &&
+              attachedFile.type.startsWith("image/") &&
+              filePreviewUrl && (
+                <div className="mb-1 rounded-xl border border-slate-200 bg-slate-50 p-2 flex items-start justify-between gap-2">
+                  <div className="flex-1 text-xs text-slate-700">
+                    <img
+                      src={filePreviewUrl}
+                      alt="preview"
+                      className="max-h-32 rounded-lg object-contain bg-white"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetAttachment}
+                    className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  >
+                    <i className="bx bx-x text-sm" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={resetAttachment}
-                  className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
-                >
-                  <i className="bx bx-x text-sm" />
-                </button>
-              </div>
-            )}
+              )}
 
             {/* preview audio */}
             {attachedFile && attachedFile.type.startsWith("audio/") && (
@@ -1153,7 +1264,7 @@ function App() {
             )}
 
             <textarea
-              className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
+              className="flex-1 w-full resize-none rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
               placeholder={
                 inputMode === "voice"
                   ? "Klik mic untuk rekam, lalu kirim."
@@ -1171,7 +1282,9 @@ function App() {
 
           <button
             type="submit"
-            disabled={loading || (!content.trim() && !attachedFile && !attachedImageBase64)}
+            disabled={
+              loading || (!content.trim() && !attachedFile && !attachedImageBase64)
+            }
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -1200,8 +1313,8 @@ function App() {
                     Mulai ngobrol dengan GuptaAI
                   </h1>
                   <p className="text-sm mb-4 max-w-md">
-                    Tulis pertanyaan, upload gambar, atau rekam suara. GuptaAI akan menjawab dalam
-                    bahasa Indonesia.
+                    Tulis pertanyaan, upload gambar, atau rekam suara.
+                    GuptaAI akan menjawab dalam bahasa Indonesia.
                   </p>
                   <div className="flex flex-wrap gap-2 justify-center text-xs text-slate-600 max-w-md">
                     <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
@@ -1219,19 +1332,22 @@ function App() {
                 <div className="space-y-4">
                   {messages.map((msg, idx) => {
                     const isUser = msg.role === "user";
-                    const isTypingTarget = !isUser && idx === typingMessageIndex;
-                    const displayContent = isTypingTarget ? typingContent : msg.content;
+                    const isTypingTarget =
+                      !isUser && idx === typingMessageIndex;
+                    const displayContent = isTypingTarget
+                      ? typingContent
+                      : msg.content;
 
                     return (
                       <div
                         key={idx}
-                        className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
+                        className={`flex w-full ${isUser ? "justify-end" : "justify-start"
+                          }`}
                       >
                         <div
                           className={`flex max-w-3xl gap-3 ${isUser ? "flex-row-reverse" : "flex-row"
                             }`}
                         >
-                          
                           <div className="flex flex-col gap-1">
                             <div
                               className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${isUser
@@ -1246,42 +1362,18 @@ function App() {
                                   <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                      pre({ node, ...props }) {
-                                        return (
-                                          <div className="code-block">
-                                            <div className="code-block-header">
-                                              <span className="code-block-title">
-                                                Kode
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className="code-block-copy"
-                                                onClick={() => {
-                                                  try {
-                                                    const raw =
-                                                      props.children &&
-                                                      props.children[0] &&
-                                                      props.children[0].props &&
-                                                      props.children[0].props.children &&
-                                                      props.children[0].props.children[0];
-
-                                                    const text = raw ? String(raw) : "";
-                                                    if (!text) return;
-
-                                                    navigator.clipboard.writeText(text).catch(() => { });
-                                                  } catch (e) {
-                                                    console.error("copy code fail", e);
-                                                  }
-                                                }}
-                                              >
-                                                Salin kode
-                                              </button>
-                                            </div>
-                                            <pre {...props} />
-                                          </div>
-                                        );
+                                      // jangan hapus pre sepenuhnya, cukup kembalikan children-nya saja
+                                      pre({ children }) {
+                                        // ini menghindari double <pre> tapi tetap mempertahankan konten
+                                        return <>{children}</>;
                                       },
-                                      code({ inline, className, children, ...props }) {
+
+                                      code({ node, inline, className, children, ...props }) {
+                                        const match = /language-(\w+)/.exec(className || "");
+                                        const codeString = String(children).replace(/\n$/, "");
+                                        const lang = match ? match[1] : "text";
+
+                                        // inline code
                                         if (inline) {
                                           return (
                                             <code className={`inline-code ${className || ""}`} {...props}>
@@ -1290,13 +1382,37 @@ function App() {
                                           );
                                         }
 
+                                        // block code
                                         return (
-                                          <code
-                                            className={`block-code ${className || ""}`}
-                                            {...props}
-                                          >
-                                            {String(children).replace(/\n$/, "")}
-                                          </code>
+                                          <div className="code-block">
+                                            {/* Header */}
+                                            <div className="code-block-header">
+                                              <span className="code-block-title">Kode</span>
+                                            </div>
+
+                                            <div className="relative group">
+                                              {/* Tombol Copy */}
+                                              <button
+                                                type="button"
+                                                onClick={() => copyText(codeString)}
+                                                className="absolute right-2 top-2 z-10 hidden items-center gap-1 rounded-full bg-slate-900/80 px-2 py-1 text-[10px] text-white shadow-sm group-hover:flex"
+                                              >
+                                                <i className="bx bx-copy text-xs" />
+                                                <span>Salin kode</span>
+                                              </button>
+
+                                              {/* Syntax Highlighter */}
+                                              <SyntaxHighlighter
+                                                style={oneDark}
+                                                language={lang}
+                                                PreTag="div"
+                                                className="rounded-xl text-xs !bg-[#111827] !p-3 overflow-x-auto"
+                                                {...props}
+                                              >
+                                                {codeString}
+                                              </SyntaxHighlighter>
+                                            </div>
+                                          </div>
                                         );
                                       },
                                     }}
@@ -1304,7 +1420,6 @@ function App() {
                                     {displayContent}
                                   </ReactMarkdown>
                                 </div>
-
                               )}
                             </div>
                             {!isUser && (
@@ -1312,7 +1427,9 @@ function App() {
                                 <span>Dijawab oleh GuptaAI</span>
                                 <button
                                   type="button"
-                                  onClick={() => copyText(msg.content)}
+                                  onClick={() =>
+                                    copyText(msg.content)
+                                  }
                                   className="ml-2 px-2 py-0.5 rounded-full border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-50"
                                 >
                                   Salin
@@ -1344,8 +1461,37 @@ function App() {
           </div>
         </div>
       </main>
+      {/*  */}
+      {toast.show && (
+        <div className="fixed bottom-4 right-4 z-[9999]">
+          <div
+            className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs shadow-lg border ${toast.type === "success"
+              ? "bg-emerald-600/95 text-white border-emerald-500"
+              : toast.type === "error"
+                ? "bg-rose-600/95 text-white border-rose-500"
+                : "bg-slate-900/95 text-white border-slate-700"
+              }`}
+          >
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10">
+              <i
+                className={`bx ${toast.type === "success"
+                  ? "bx-check"
+                  : toast.type === "error"
+                    ? "bx-error"
+                    : "bx-info-circle"
+                  } text-sm`}
+              />
+            </span>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/*  */}
+
     </div>
   );
+
 }
 
 export default App;
