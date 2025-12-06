@@ -52,7 +52,7 @@
   overflow: hidden;
   background: #020617;
   border: 1px solid #0f172a;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 0 10px rgba(15, 23, 42, 0.26);
 }
 
 /* Header blok kode */
@@ -147,9 +147,12 @@
 /* ========= CODE AREA ========= */
 
 pre {
-  white-space: pre-wrap !important;     /* baris panjang boleh turun */
-  word-break: break-word;
-  overflow-wrap: break-word;
+  white-space: pre-wrap !important;   /* wrap, tapi tetap hormati indentasi */
+  overflow-wrap: break-word !important; /* pecah kata panjang */
+  word-break: break-all !important;   /* PAKSA pecah kalau extremely panjang */
+  width: 100%;                        /* biar ikut lebar container */
+  max-width: 100%;                    /* no overflow wrap issue */
+  
   overflow-x: auto;
   margin: 0;
   padding: 10px 12px 12px;
@@ -161,13 +164,17 @@ pre {
   border-radius: 0 0 14px 14px;
 }
 
+
 /* Code di dalam <pre> */
 pre code {
   display: block;
   padding: 0;
   background: transparent !important;
-  white-space: inherit !important;
+  white-space: inherit !important; /* ikut aturan pre */
+  word-break: inherit !important;
+  overflow-wrap: inherit !important;
 }
+
 
 /* Line numbers (opsional) */
 pre code {
