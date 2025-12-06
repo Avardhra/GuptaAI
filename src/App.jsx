@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import kepribadian from "../config/kepribadian.json";
 
 const GUPTA_API = import.meta.env.VITE_AVARDHRA;
 
@@ -12,21 +13,31 @@ const groq = new Groq({
 });
 
 const MODEL_OPTIONS = [
-  { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
-  { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
-  { value: "meta-llama/llama-4-maverick-17b-128k", label: "Llama 4 Maverick 17B" },
-  { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout 17B Instruct" },
-  { value: "meta-llama/llama-guard-4-12b", label: "Llama Guard 4 12B" },
-  { value: "meta-llama/llama-prompt-guard-2-2b", label: "Llama Prompt Guard 2 2B" },
-  { value: "meta-llama/llama-prompt-guard-2-8b", label: "Llama Prompt Guard 2 8B" },
-  { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2 Instruct" },
-  { value: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 Instruct 0905" },
-  { value: "openai/gpt-oss-120b", label: "GPT-4" },
-  { value: "openai/gpt-oss-20b", label: "GPT-3" },
-  { value: "openai/gpt-oss-safeguard-20b", label: "GPT-2" },
-  { value: "whisper-large-v3", label: "Whisper Large v3 (audio)" },
-  { value: "whisper-large-v3-turbo", label: "Whisper Large v3 Turbo (audio)" },
+  // Chat umum
+  { value: "llama-3.1-8b-instant",         label: "Cepat (Llama 3.1 8B)" },
+  { value: "llama-3.3-70b-versatile",      label: "Pintar (Llama 3.3 70B)" },
+  { value: "openai/gpt-oss-20b",           label: "GPT Ringan" },
+  { value: "openai/gpt-oss-120b",          label: "GPT Pro" },
+
+  // Mode aman / filter
+  { value: "openai/gpt-oss-safeguard-20b", label: "GPT Aman (dengan filter)" },
+  { value: "meta-llama/llama-guard-4-12b", label: "Llama Guard (keamanan)" },
+
+  // Prompt guard
+  { value: "meta-llama/llama-prompt-guard-2-2b", label: "Prompt Guard 2B" },
+  { value: "meta-llama/llama-prompt-guard-2-8b", label: "Prompt Guard 8B" },
+
+  // Model lain
+  { value: "meta-llama/llama-4-maverick-17b-128k",      label: "Llama 4 Maverick" },
+  { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout" },
+  { value: "moonshotai/kimi-k2-instruct",               label: "Kimi K2" },
+  { value: "moonshotai/kimi-k2-instruct-0905",          label: "Kimi K2 (baru)" },
+
+  // Audio
+  { value: "whisper-large-v3",          label: "Transkrip Suara" },
+  { value: "whisper-large-v3-turbo",    label: "Transkrip Suara (Cepat)" },
 ];
+
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
@@ -53,8 +64,7 @@ const requestToGroqAi = async (content, model, history, imageBase64) => {
   const messages = [
     {
       role: "system",
-      content:
-        "Gunakan bahasa Indonesia yang sopan, jelas, dan elegan. Gunakan Markdown bila perlu (judul, list, tabel, kode).",
+      content: kepribadian.systemPrompt,
     },
     ...cleanedHistory,
     { role: "user", content: finalContent },
@@ -142,6 +152,9 @@ function App() {
   const [fileMenuPos, setFileMenuPos] = useState({ x: 0, y: 0 });
   const fileLongPressRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // flag untuk bedakan long press vs short click
+  const isLongPressRef = useRef(false);
 
   // tab popup
   const [showTabPopup, setShowTabPopup] = useState(false);
@@ -302,7 +315,7 @@ function App() {
         clearInterval(interval);
         setTypingMessageIndex(null);
       }
-    }, 15); // kecepatan ketik
+    }, 15);
 
     return () => clearInterval(interval);
   }, [typingMessageIndex, messages]);
@@ -356,7 +369,6 @@ function App() {
     resetAttachment();
 
     if (file.type.startsWith("image/")) {
-      // gambar → untuk vision
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result;
@@ -368,14 +380,13 @@ function App() {
       setFilePreviewUrl(url);
       setAttachedFile(file);
     } else if (file.type.startsWith("audio/")) {
-      // audio → whisper
       setAttachedFile(file);
       setAttachedImageBase64(null);
     } else {
       alert("Hanya mendukung gambar atau audio.");
     }
 
-    // reset accept kembali ke default
+    // selalu reset accept ke default
     if (fileInputRef.current) {
       fileInputRef.current.accept = "image/*,audio/*";
     }
@@ -388,7 +399,6 @@ function App() {
     let text = content.trim();
     const historyForApi = [...messages];
 
-    // jika ada audio terlampir → transcribe dulu
     if (attachedFile && attachedFile.type.startsWith("audio/")) {
       setLoading(true);
       try {
@@ -414,7 +424,6 @@ function App() {
       }
     }
 
-    // jika tidak ada teks dan tidak ada image, jangan kirim
     if (!text && !attachedImageBase64) return;
 
     const userMsgContent = attachedImageBase64
@@ -447,7 +456,6 @@ function App() {
       );
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
 
-      // push ke messages DAN trigger efek mengetik
       setMessages((prev) => {
         const next = [...prev, aiMsg];
         const index = next.length - 1;
@@ -603,7 +611,6 @@ function App() {
     setIsRecording(false);
   };
 
-  // UI helpers
   const modeLabel = () => {
     if (inputMode === "text") return "Text";
     if (inputMode === "file") return "File";
@@ -1004,27 +1011,31 @@ function App() {
         className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-3 py-3 sm:px-4"
       >
         <div className="mx-auto flex max-w-3xl items-end gap-2">
-          {/* mode switch */}
+          {/* FILE / MIC */}
           <div className="flex items-center gap-1">
             {/* ICON FILE DENGAN LONG PRESS */}
             <button
               type="button"
               onMouseDown={(e) => {
+                isLongPressRef.current = false;
                 const rect = e.currentTarget.getBoundingClientRect();
                 fileLongPressRef.current = setTimeout(() => {
+                  isLongPressRef.current = true;
                   setFileMenuPos({
                     x: rect.left + rect.width / 2,
                     y: rect.top - 8,
                   });
                   setShowFileMenu(true);
-                }, 200); // 0.2s
+                }, 600); // 0.6s long press
               }}
               onMouseUp={() => {
                 if (fileLongPressRef.current) {
                   clearTimeout(fileLongPressRef.current);
                   fileLongPressRef.current = null;
-                  // klik singkat → buka file picker (default image+audio)
-                  if (!showFileMenu && fileInputRef.current) {
+                }
+                if (!isLongPressRef.current) {
+                  // short click → buka file picker langsung
+                  if (fileInputRef.current) {
                     fileInputRef.current.accept = "image/*,audio/*";
                     fileInputRef.current.click();
                   }
@@ -1050,7 +1061,7 @@ function App() {
               onChange={handleFileChange}
             />
 
-            {/* tombol mic (voice terpisah) */}
+            {/* tombol mic (opsional, kalau mau mode voice terpisah) */}
             {inputMode === "voice" && (
               <button
                 type="button"
@@ -1076,7 +1087,6 @@ function App() {
                 }}
                 onMouseLeave={() => setShowFileMenu(false)}
               >
-                {/* pilih gambar */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1091,8 +1101,6 @@ function App() {
                 >
                   <i className="bx bx-image text-base" />
                 </button>
-
-                {/* pilih audio */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1107,8 +1115,6 @@ function App() {
                 >
                   <i className="bx bx-microphone text-base" />
                 </button>
-
-                {/* tutup */}
                 <button
                   type="button"
                   onClick={() => setShowFileMenu(false)}
