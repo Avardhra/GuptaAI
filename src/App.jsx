@@ -431,7 +431,7 @@ function App() {
         clearInterval(interval);
         setTypingMessageIndex(null);
       }
-    }, 1);
+    }, 0.50);
 
     return () => clearInterval(interval);
   }, [typingMessageIndex, messages]);
@@ -1642,15 +1642,15 @@ const duration = getRelationshipDuration();
       </main>
       {/*  */}
 {showLovePopup && (
-  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-pink-100/90 backdrop-blur-md">
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gradient-to-b from-pink-100/95 via-rose-100/95 to-pink-100/95 backdrop-blur-lg">
     {/* Partikel love & bunga */}
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {[...Array(45)].map((_, i) => {
-        const delay = Math.random() * 4;
-        const durationAnim = 6 + Math.random() * 4;
+      {[...Array(55)].map((_, i) => {
+        const delay = Math.random() * 5;
+        const durationAnim = 7 + Math.random() * 5;
         const left = Math.random() * 100;
-        const size = 12 + Math.random() * 20;
-        const isHeart = Math.random() > 0.35;
+        const size = 10 + Math.random() * 22;
+        const isHeart = Math.random() > 0.3;
         return (
           <div
             key={i}
@@ -1663,7 +1663,7 @@ const duration = getRelationshipDuration();
               fontSize: `${size}px`,
             }}
           >
-            <span className="drop-shadow-[0_0_8px_rgba(244,114,182,0.7)]">
+            <span className="drop-shadow-[0_0_10px_rgba(244,114,182,0.8)]">
               {isHeart ? "💗" : "🌸"}
             </span>
           </div>
@@ -1671,44 +1671,63 @@ const duration = getRelationshipDuration();
       })}
     </div>
 
-    {/* Konten utama */}
-    <div className="relative z-10 flex flex-col items-center text-center px-6">
-      {/* Ikon hati Boxicons */}
-      <div className="flex items-center justify-center w-32 h-32 rounded-[40px] bg-pink-400 shadow-[0_25px_60px_rgba(219,39,119,0.55)]">
-        <i className="bx bxs-heart text-[70px] text-pink-100 drop-shadow-[0_0_20px_rgba(248,250,252,0.9)] animate-pulse-slow"></i>
+    {/* Kartu utama */}
+    <div className="relative z-10 mx-4 w-full max-w-md">
+      <div className="rounded-[30px] bg-white/80 shadow-[0_25px_80px_rgba(190,24,93,0.35)] border border-pink-100/80 px-6 py-8 sm:px-8 sm:py-9 backdrop-blur-xl flex flex-col items-center text-center">
+        {/* Badge kecil di atas */}
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-pink-100/80 px-3 py-1 text-[11px] font-semibold text-pink-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-pink-500 animate-pulse" />
+          <span>Love Story Mode</span>
+        </div>
+
+        {/* Ikon hati Boxicons */}
+        <div className="flex items-center justify-center w-28 h-28 sm:w-32 sm:h-32 rounded-[40px] bg-gradient-to-br from-pink-400 via-rose-400 to-pink-500 shadow-[0_25px_60px_rgba(219,39,119,0.65)]">
+          <i className="bx bxs-heart text-[64px] sm:text-[72px] text-pink-50 drop-shadow-[0_0_22px_rgba(248,250,252,0.95)] animate-pulse-slow" />
+        </div>
+
+        <h2 className="mt-5 text-2xl sm:text-[26px] font-extrabold tracking-tight text-pink-950">
+          Untuk Nivalesha 💖✨
+        </h2>
+
+        <p className="mt-3 max-w-md text-sm sm:text-[15px] leading-relaxed text-pink-900/85">
+          Setiap kali nama <span className="font-semibold">Nivalesha</span> muncul,
+          GuptaAI ikut merayakan cinta manis antara{" "}
+          <span className="font-semibold">Niken</span> dan{" "}
+          <span className="font-semibold">Valendra</span>.  
+          Semoga ceritanya terus tumbuh, selembut senja dan selucu chat tengah malam. 🌸
+        </p>
+
+        <div className="mt-4 rounded-2xl bg-pink-50/90 border border-pink-100 px-4 py-3 text-[11px] sm:text-xs text-pink-900/80 shadow-inner">
+          <p className="font-semibold text-pink-900 mb-0.5">
+            Waktu berjalan, rasanya ikut hangat. ⏳
+          </p>
+          <p>
+            Sudah{" "}
+            <span className="font-bold">
+              {duration.years} tahun {duration.months} bulan {duration.days} hari
+            </span>{" "}
+            sejak <span className="font-semibold">9 November 2024</span>,  
+            yaitu <span className="font-bold">{duration.totalDays} hari penuh cerita</span> yang kalian tulis berdua. 💫
+          </p>
+        </div>
+
+        <p className="mt-3 text-[11px] sm:text-xs text-pink-900/70">
+          Terus jaga, ya. Di dunia nyata maupun di setiap baris chat kecil seperti ini. 💌
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setShowLovePopup(false)}
+          className="mt-7 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 via-rose-500 to-pink-500 px-6 py-2.5 text-xs sm:text-[13px] font-semibold text-pink-50 shadow-[0_14px_35px_rgba(244,114,182,0.7)] hover:brightness-105 active:scale-95 transition-transform transition-[filter]"
+        >
+          <i className="bx bxs-heart-circle text-base" />
+          Tutup, tapi cintanya lanjut 💞
+        </button>
       </div>
-
-      <h2 className="mt-4 text-2xl font-bold text-pink-900">
-        Untuk Nivalesha 💖✨
-      </h2>
-      <p className="mt-3 max-w-md text-sm text-pink-900/80">
-        Setiap kali nama Nivalesha muncul, GuptaAI ikut merayakan cinta
-        yang lahir dari Niken dan Valendra. Semoga ceritanya selalu indah
-        dan penuh bunga. 🌸
-      </p>
-
-      <p className="mt-3 text-xs text-pink-900/70">
-        Sudah berjalan{" "}
-        <span className="font-semibold">
-          {duration.years} tahun {duration.months} bulan {duration.days} hari
-        </span>{" "}
-        sejak 9 November 2024{" "}
-        <span className="font-semibold">
-          ({duration.totalDays} hari penuh cinta)
-        </span>
-        . 💫
-      </p>
-
-      <button
-        type="button"
-        onClick={() => setShowLovePopup(false)}
-        className="mt-7 px-5 py-2 rounded-full bg-white text-pink-700 text-xs font-semibold shadow-[0_10px_25px_rgba(244,114,182,0.5)] hover:bg-pink-50"
-      >
-        Tutup
-      </button>
     </div>
   </div>
 )}
+
 
 
       {/*  */}

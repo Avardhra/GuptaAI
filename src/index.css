@@ -337,13 +337,8 @@ pre::-webkit-scrollbar-thumb {
 }
 
 @keyframes pulse-slow {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.06);
-  }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
 }
 
 .animate-pulse-slow {
