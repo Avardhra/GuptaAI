@@ -14,10 +14,10 @@ const groq = new Groq({
 
 const MODEL_OPTIONS = [
   // Chat umum
-  { value: "llama-3.1-8b-instant",         label: "Cepat (Llama 3.1 8B)" },
-  { value: "llama-3.3-70b-versatile",      label: "Pintar (Llama 3.3 70B)" },
-  { value: "openai/gpt-oss-20b",           label: "GPT Ringan" },
-  { value: "openai/gpt-oss-120b",          label: "GPT Pro" },
+  { value: "llama-3.1-8b-instant", label: "Cepat (Llama 3.1 8B)" },
+  { value: "llama-3.3-70b-versatile", label: "Pintar (Llama 3.3 70B)" },
+  { value: "openai/gpt-oss-20b", label: "GPT Ringan" },
+  { value: "openai/gpt-oss-120b", label: "GPT Pro" },
 
   // Mode aman / filter
   { value: "openai/gpt-oss-safeguard-20b", label: "GPT Aman (dengan filter)" },
@@ -28,13 +28,13 @@ const MODEL_OPTIONS = [
   { value: "meta-llama/llama-prompt-guard-2-8b", label: "Prompt Guard 8B" },
 
   // Model lain
-  { value: "meta-llama/llama-4-maverick-17b-128k",      label: "Llama 4 Maverick" },
+  { value: "meta-llama/llama-4-maverick-17b-128k", label: "Llama 4 Maverick" },
   { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout" },
-  { value: "moonshotai/kimi-k2-instruct",               label: "Kimi K2" },
-  { value: "moonshotai/kimi-k2-instruct-0905",          label: "Kimi K2 (baru)" },
+  { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2" },
+  { value: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 (baru)" },
 
   // Audio
-  { value: "whisper-large-v3",       label: "Transkrip Suara" },
+  { value: "whisper-large-v3", label: "Transkrip Suara" },
   { value: "whisper-large-v3-turbo", label: "Transkrip Suara (Cepat)" },
 ];
 
@@ -633,22 +633,20 @@ function App() {
               <button
                 type="button"
                 onClick={() => setLoginMode("login")}
-                className={`flex-1 py-1.5 rounded-l-lg ${
-                  loginMode === "login"
-                    ? "bg-white text-slate-900 font-semibold"
-                    : "text-slate-500"
-                }`}
+                className={`flex-1 py-1.5 rounded-l-lg ${loginMode === "login"
+                  ? "bg-white text-slate-900 font-semibold"
+                  : "text-slate-500"
+                  }`}
               >
                 Masuk
               </button>
               <button
                 type="button"
                 onClick={() => setLoginMode("signup")}
-                className={`flex-1 py-1.5 rounded-r-lg ${
-                  loginMode === "signup"
-                    ? "bg-white text-slate-900 font-semibold"
-                    : "text-slate-500"
-                }`}
+                className={`flex-1 py-1.5 rounded-r-lg ${loginMode === "signup"
+                  ? "bg-white text-slate-900 font-semibold"
+                  : "text-slate-500"
+                  }`}
               >
                 Daftar
               </button>
@@ -735,11 +733,10 @@ function App() {
                 historyList.map((m, i) => (
                   <div
                     key={i}
-                    className={`p-3 rounded-lg ${
-                      m.role === "user"
-                        ? "bg-slate-100 text-slate-900"
-                        : "bg-white border border-slate-200 text-slate-900"
-                    }`}
+                    className={`p-3 rounded-lg ${m.role === "user"
+                      ? "bg-slate-100 text-slate-900"
+                      : "bg-white border border-slate-200 text-slate-900"
+                      }`}
                   >
                     <div className="text-[12px] font-medium mb-1">
                       {m.role === "user" ? "Anda" : "GuptaAI"}
@@ -931,9 +928,8 @@ function App() {
                     </div>
                   </div>
                   <i
-                    className={`bx bx-chevron-down text-lg text-slate-500 transition-transform ${
-                      modelOpen ? "rotate-180" : ""
-                    }`}
+                    className={`bx bx-chevron-down text-lg text-slate-500 transition-transform ${modelOpen ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
                 {modelOpen && (
@@ -952,10 +948,9 @@ function App() {
                           className={`
                             w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px]
                             transition-all duration-150
-                            ${
-                              active
-                                ? "border-slate-900 bg-slate-900 text-white"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                            ${active
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                             }
                           `}
                         >
@@ -1063,11 +1058,10 @@ function App() {
               <button
                 type="button"
                 onClick={isRecording ? stopRecording : startRecording}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-xs shadow-sm ${
-                  isRecording
-                    ? "bg-rose-600 border-rose-600 text-white animate-pulse"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-xs shadow-sm ${isRecording
+                  ? "bg-rose-600 border-rose-600 text-white animate-pulse"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
               >
                 <i className={`bx ${isRecording ? "bx-stop" : "bx-microphone"} text-lg`} />
               </button>
@@ -1164,8 +1158,8 @@ function App() {
                 inputMode === "voice"
                   ? "Klik mic untuk rekam, lalu kirim."
                   : inputMode === "file"
-                  ? "Upload gambar/audio, lalu beri instruksi jika perlu..."
-                  : "Tulis pertanyaanmu di sini..."
+                    ? "Upload gambar/audio, lalu beri instruksi jika perlu..."
+                    : "Tulis pertanyaanmu di sini..."
               }
               spellCheck="false"
               rows={1}
@@ -1234,90 +1228,82 @@ function App() {
                         className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
                       >
                         <div
-                          className={`flex max-w-3xl gap-3 ${
-                            isUser ? "flex-row-reverse" : "flex-row"
-                          }`}
+                          className={`flex max-w-3xl gap-3 ${isUser ? "flex-row-reverse" : "flex-row"
+                            }`}
                         >
-                          {!isUser && (
-                            <div className="flex-shrink-0 h-9 w-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-semibold shadow-sm">
-                              G
-                            </div>
-                          )}
+                          
                           <div className="flex flex-col gap-1">
                             <div
-                              className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                                isUser
-                                  ? "bg-slate-900 text-white rounded-br-md"
-                                  : "bg-white text-slate-900 border border-slate-200 rounded-bl-md"
-                              }`}
+                              className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${isUser
+                                ? "bg-slate-900 text-white rounded-br-md"
+                                : "bg-white text-slate-900 border border-slate-200 rounded-bl-md"
+                                }`}
                             >
                               {isUser ? (
                                 displayContent
                               ) : (
-                                // ... import dan kode lain tetap
+                                <div className="prose prose-slate prose-sm max-w-none markdown-body">
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      pre({ node, ...props }) {
+                                        return (
+                                          <div className="code-block">
+                                            <div className="code-block-header">
+                                              <span className="code-block-title">
+                                                Kode
+                                              </span>
+                                              <button
+                                                type="button"
+                                                className="code-block-copy"
+                                                onClick={() => {
+                                                  try {
+                                                    const raw =
+                                                      props.children &&
+                                                      props.children[0] &&
+                                                      props.children[0].props &&
+                                                      props.children[0].props.children &&
+                                                      props.children[0].props.children[0];
 
-<div className="prose prose-slate prose-sm max-w-none markdown-body">
-  <ReactMarkdown
-    remarkPlugins={[remarkGfm]}
-    components={{
-      pre({ node, ...props }) {
-        return (
-          <div className="code-block">
-            <div className="code-block-header">
-              <span className="code-block-title">
-                Kode
-              </span>
-              <button
-                type="button"
-                className="code-block-copy"
-                onClick={() => {
-                  try {
-                    const raw =
-                      props.children &&
-                      props.children[0] &&
-                      props.children[0].props &&
-                      props.children[0].props.children &&
-                      props.children[0].props.children[0];
+                                                    const text = raw ? String(raw) : "";
+                                                    if (!text) return;
 
-                    const text = raw ? String(raw) : "";
-                    if (!text) return;
+                                                    navigator.clipboard.writeText(text).catch(() => { });
+                                                  } catch (e) {
+                                                    console.error("copy code fail", e);
+                                                  }
+                                                }}
+                                              >
+                                                Salin kode
+                                              </button>
+                                            </div>
+                                            <pre {...props} />
+                                          </div>
+                                        );
+                                      },
+                                      code({ inline, className, children, ...props }) {
+                                        if (inline) {
+                                          return (
+                                            <code className={`inline-code ${className || ""}`} {...props}>
+                                              {children}
+                                            </code>
+                                          );
+                                        }
 
-                    navigator.clipboard.writeText(text).catch(() => {});
-                  } catch (e) {
-                    console.error("copy code fail", e);
-                  }
-                }}
-              >
-                Salin kode
-              </button>
-            </div>
-            <pre {...props} />
-          </div>
-        );
-      },
-      code({ inline, className, children, ...props }) {
-        if (inline) {
-          return (
-            <code className={`inline-code ${className || ""}`} {...props}>
-              {children}
-            </code>
-          );
-        }
-
-        return (
-          <code
-            className={`block-code ${className || ""}`}
-            {...props}
-          >
-            {String(children).replace(/\n$/, "")}
-          </code>
-        );
-      },
-    }}
-  >
-    {displayContent}
-  </ReactMarkdown>
-</div>
+                                        return (
+                                          <code
+                                            className={`block-code ${className || ""}`}
+                                            {...props}
+                                          >
+                                            {String(children).replace(/\n$/, "")}
+                                          </code>
+                                        );
+                                      },
+                                    }}
+                                  >
+                                    {displayContent}
+                                  </ReactMarkdown>
+                                </div>
 
                               )}
                             </div>
