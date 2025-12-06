@@ -34,10 +34,9 @@ const MODEL_OPTIONS = [
   { value: "moonshotai/kimi-k2-instruct-0905",          label: "Kimi K2 (baru)" },
 
   // Audio
-  { value: "whisper-large-v3",          label: "Transkrip Suara" },
-  { value: "whisper-large-v3-turbo",    label: "Transkrip Suara (Cepat)" },
+  { value: "whisper-large-v3",       label: "Transkrip Suara" },
+  { value: "whisper-large-v3-turbo", label: "Transkrip Suara (Cepat)" },
 ];
-
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
@@ -362,7 +361,7 @@ function App() {
     setFilePreviewUrl(null);
   };
 
-  // === FILE / IMAGE UPLOAD ===
+  // === FILE / IMAGE / AUDIO UPLOAD ===
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -455,7 +454,6 @@ function App() {
         attachedImageBase64
       );
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
-
       setMessages((prev) => {
         const next = [...prev, aiMsg];
         const index = next.length - 1;
@@ -973,7 +971,6 @@ function App() {
                     })}
                   </div>
                 )}
-
                 <p className="mt-1 text-[11px] text-slate-400">
                   Pilih model teks biasa atau model vision/audio sesuai kebutuhan.
                 </p>
@@ -1061,7 +1058,7 @@ function App() {
               onChange={handleFileChange}
             />
 
-            {/* tombol mic (opsional, kalau mau mode voice terpisah) */}
+            {/* tombol mic opsional jika mau mode voice terpisah */}
             {inputMode === "voice" && (
               <button
                 type="button"
@@ -1257,7 +1254,7 @@ function App() {
                               {isUser ? (
                                 displayContent
                               ) : (
-                                <div className="prose prose-slate prose-sm max-w-none">
+                                <div className="prose prose-slate prose-sm max-w-none markdown-body">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                     {displayContent}
                                   </ReactMarkdown>
