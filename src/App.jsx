@@ -1,7 +1,6 @@
 // src/App.jsx
 import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
