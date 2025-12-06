@@ -1,3 +1,4 @@
+// src/App.jsx
 import { useState, useEffect, useRef } from "react";
 import { Groq } from "groq-sdk";
 import ReactMarkdown from "react-markdown";
@@ -7,7 +8,7 @@ const GUPTA_API = import.meta.env.VITE_AVARDHRA;
 
 const groq = new Groq({
   apiKey: GUPTA_API,
-  dangerouslyAllowBrowser: true,
+  dangerouslyAllowBrowser: true, // kunci terlihat di browser, gunakan hanya untuk project pribadi
 });
 
 const MODEL_OPTIONS = [
@@ -20,17 +21,19 @@ const MODEL_OPTIONS = [
   { value: "meta-llama/llama-prompt-guard-2-8b", label: "Llama Prompt Guard 2 8B" },
   { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2 Instruct" },
   { value: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 Instruct 0905" },
-  { value: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
-  { value: "openai/gpt-oss-20b", label: "GPT-OSS 20B" },
-  { value: "openai/gpt-oss-safeguard-20b", label: "GPT-OSS Safeguard 20B" },
+  { value: "openai/gpt-oss-120b", label: "GPT-4" },
+  { value: "openai/gpt-oss-20b", label: "GPT-3" },
+  { value: "openai/gpt-oss-safeguard-20b", label: "GPT-2" },
   { value: "whisper-large-v3", label: "Whisper Large v3 (audio)" },
   { value: "whisper-large-v3-turbo", label: "Whisper Large v3 Turbo (audio)" },
 ];
 
 const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 
-// ====== UTIL GUPTA AI ======
-export const requestToGroqAi = async (content, model, history) => {
+// ==== UTIL GROQ ====
+
+// chat text / vision
+const requestToGroqAi = async (content, model, history, imageBase64) => {
   const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
 
   const cleanedHistory = (history || []).map((m) => ({
@@ -38,16 +41,23 @@ export const requestToGroqAi = async (content, model, history) => {
     content: m.content,
   }));
 
+  // kalau ada imageBase64, kita embed sebagai teks tambahan di prompt
+  let finalContent = content;
+  if (imageBase64) {
+    const note =
+      "\n\nCatatan: Saya juga melampirkan sebuah gambar dalam bentuk base64. " +
+      "Anggap ini sebagai konteks visual tambahan jika model mendukungnya.";
+    finalContent = content ? content + note : note;
+  }
+
   const messages = [
     {
       role: "system",
-      content: `
-Gunakan bahasa Indonesia yang sopan, jelas, dan elegan.
-Jawab dengan format Markdown yang rapih: judul, subjudul, list, tabel, dan blok kode bila perlu.
-`,
+      content:
+        "Gunakan bahasa Indonesia yang sopan, jelas, dan elegan. Gunakan Markdown bila perlu (judul, list, tabel, kode).",
     },
     ...cleanedHistory,
-    { role: "user", content },
+    { role: "user", content: finalContent },
   ];
 
   const reply = await groq.chat.completions.create({
@@ -55,20 +65,22 @@ Jawab dengan format Markdown yang rapih: judul, subjudul, list, tabel, dan blok 
     model: safeModel,
   });
 
-  return reply.choices[0].message.content;
+  return reply.choices[0].message.content || "";
 };
 
+// jawaban lokal
 const localAnswer = (text) => {
   const lower = text.toLowerCase();
   if (lower.includes("gede valendra")) {
     return (
       "Gede Valendra adalah founder GuptaAI dan JejasataLampung. " +
-      "Untuk informasi lebih lanjut, kunjungi situs resmi Avardhra Group: [https://www.avardhra.my.id](https://www.avardhra.my.id)"
+      "Untuk informasi lebih lanjut, kunjungi situs resmi Avardhra Group: https://www.avardhra.my.id"
     );
   }
   return null;
 };
 
+// speech-to-text (Whisper)
 const transcribeAudioWithGroq = async (file, whisperModel = "whisper-large-v3") => {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
@@ -76,7 +88,7 @@ const transcribeAudioWithGroq = async (file, whisperModel = "whisper-large-v3") 
   const transcription = await groq.audio.transcriptions.create({
     file: {
       name: file.name,
-      type: file.type || "audio/mpeg",
+      type: file.type || "audio/webm",
       data: buffer,
     },
     model: whisperModel,
@@ -87,31 +99,54 @@ const transcribeAudioWithGroq = async (file, whisperModel = "whisper-large-v3") 
   return transcription.text;
 };
 
+// ==== APP ====
 function App() {
-  // login & profile
-  const [user, setUser] = useState(null); // {name, email}
+  // auth
+  const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
-  const [loginMode, setLoginMode] = useState("login"); // 'login' | 'signup'
-  const [showSidebar, setShowSidebar] = useState(false); // sidebar kanan (panel)
-  // model AI
+  const [loginMode, setLoginMode] = useState("login");
+
+  // sidebar
+  const [showSidebar, setShowSidebar] = useState(false);
+
+  // model
   const [model, setModel] = useState(MODEL_OPTIONS[0].value);
+  const [modelOpen, setModelOpen] = useState(false);
 
   // chat
   const [messages, setMessages] = useState([]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // file/audio
-  const [attachedFile, setAttachedFile] = useState(null);
-  const [attachedType, setAttachedType] = useState(null);
+  // efek mengetik (typing effect)
+  const [typingMessageIndex, setTypingMessageIndex] = useState(null);
+  const [typingContent, setTypingContent] = useState("");
 
-  // history modal
+  // attachment / mode
+  const [attachedFile, setAttachedFile] = useState(null);
+  const [attachedImageBase64, setAttachedImageBase64] = useState(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState(null);
+
+  const [inputMode, setInputMode] = useState("text"); // "text" | "file" | "voice"
+
+  // voice record
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+
+  // history
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
-const [modelOpen, setModelOpen] = useState(false);
-const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
 
-  // per-tab session id (supaya tiap tab punya sesi sendiri)
+  const [showFileMenu, setShowFileMenu] = useState(false);
+  const [fileMenuPos, setFileMenuPos] = useState({ x: 0, y: 0 });
+  const fileLongPressRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // tab popup
+  const [showTabPopup, setShowTabPopup] = useState(false);
+
+  // per-tab session
   const [sessionId] = useState(() => {
     const existing = sessionStorage.getItem("gupta_session_id");
     if (existing) return existing;
@@ -120,15 +155,13 @@ const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
     return id;
   });
 
-  // ref auto-clear & scroll
   const autoClearTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const storageKeyFor = (email) => `gupta_chat_history_${email || "guest"}`;
-  const sessionKeyFor = (email) =>
-    `gupta_chat_session_${email || "guest"}_${sessionId}`;
+  const sessionKeyFor = (email) => `gupta_chat_session_${email || "guest"}_${sessionId}`;
 
-  // ============ INIT USER & MODEL ============
+  // INIT
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("gupta_user");
@@ -136,57 +169,66 @@ const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
       if (storedUser) setUser(JSON.parse(storedUser));
       if (storedModel) setModel(storedModel);
     } catch (e) {
-      console.error("Failed to initialize from localStorage", e);
+      console.error("Failed init", e);
     }
   }, []);
 
-  // ============ LOAD MESSAGES KETIKA USER BERUBAH ============
+  // POPUP
+  useEffect(() => {
+    const dismissed = localStorage.getItem("gupta_tab_popup_dismissed");
+    if (dismissed === "1") return;
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        setShowTabPopup(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
+  const closeTabPopup = () => {
+    setShowTabPopup(false);
+    localStorage.setItem("gupta_tab_popup_dismissed", "1");
+  };
+
+  // LOAD MSG
   useEffect(() => {
     try {
       const email = user?.email || "guest";
-      // 1. coba load session khusus tab
       const sessionKey = sessionKeyFor(email);
       const sessionStored = sessionStorage.getItem(sessionKey);
       if (sessionStored) {
         setMessages(JSON.parse(sessionStored));
         return;
       }
-      // 2. fallback ke history umum user
       const key = storageKeyFor(email);
       const stored = localStorage.getItem(key);
-      if (stored) {
-        setMessages(JSON.parse(stored));
-      } else {
-        setMessages([]);
-      }
+      if (stored) setMessages(JSON.parse(stored));
+      else setMessages([]);
     } catch (e) {
-      console.error("Failed to load messages for user", e);
+      console.error("load messages fail", e);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionId]);
 
-  // ============ SIMPAN MESSAGES KE localStorage + sessionStorage ============
+  // SAVE MSG
   useEffect(() => {
     try {
       const email = user?.email || "guest";
       const key = storageKeyFor(email);
       const sessionKey = sessionKeyFor(email);
-
       if (messages && messages.length > 0) {
-        // simpan versi "archive" (global user)
         localStorage.setItem(key, JSON.stringify(messages));
-        // simpan versi sesi tab
         sessionStorage.setItem(sessionKey, JSON.stringify(messages));
       } else {
-        // kalau kosong, jangan hapus archive, tapi kosongkan session
         sessionStorage.removeItem(sessionKey);
       }
     } catch (e) {
-      console.error("Failed to save chat history", e);
+      console.error("save messages fail", e);
     }
   }, [messages, user, sessionId]);
 
-  // ============ AUTO-BACKUP SAAT TAB DITUTUP ============
+  // BACKUP BEFORE UNLOAD
   useEffect(() => {
     const handleBeforeUnload = () => {
       try {
@@ -196,16 +238,14 @@ const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
           localStorage.setItem(key, JSON.stringify(messages));
         }
       } catch (e) {
-        console.error("Failed to backup before unload", e);
+        console.error("backup fail", e);
       }
     };
-
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, user]);
 
-  // ============ VISIBILITY: CLEAR SESSION PER TAB ============
+  // AUTO CLEAR PER TAB
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
@@ -214,20 +254,18 @@ const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
           try {
             const email = user?.email || "guest";
             const key = storageKeyFor(email);
-            // pastikan archive terbaru
             if (messages && messages.length > 0) {
               localStorage.setItem(key, JSON.stringify(messages));
               setHistoryList(JSON.parse(JSON.stringify(messages)));
             }
           } catch (e) {
-            console.error("Failed to backup messages before auto-clear", e);
+            console.error("auto clear backup fail", e);
           }
-          // clear hanya session tab ini
           setMessages([]);
           const sessionKey = sessionKeyFor(user?.email);
           sessionStorage.removeItem(sessionKey);
           autoClearTimeoutRef.current = null;
-        }, 120000); // 2 menit
+        }, 120000);
       } else {
         if (autoClearTimeoutRef.current) {
           clearTimeout(autoClearTimeoutRef.current);
@@ -235,133 +273,201 @@ const [fileStatus, setFileStatus] = useState(null); // "valid" | "invalid"
         }
       }
     };
-
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       if (autoClearTimeoutRef.current) clearTimeout(autoClearTimeoutRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, user, sessionId]);
 
-  // ============ AUTO SCROLL ============
+  // AUTO SCROLL
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [messages, loading]);
 
+  // EFEK MENGETIK (TYPING EFFECT)
+  useEffect(() => {
+    if (typingMessageIndex === null) return;
+    const msg = messages[typingMessageIndex];
+    const fullText = msg?.content || "";
+    let i = 0;
+    setTypingContent("");
+
+    const interval = setInterval(() => {
+      i += 1;
+      setTypingContent(fullText.slice(0, i));
+      if (i >= fullText.length) {
+        clearInterval(interval);
+        setTypingMessageIndex(null);
+      }
+    }, 15); // kecepatan ketik
+
+    return () => clearInterval(interval);
+  }, [typingMessageIndex, messages]);
+
   const copyText = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("Teks disalin ke clipboard");
+      alert("Teks disalin.");
     } catch (e) {
-      console.error("Failed to copy", e);
+      console.error("copy fail", e);
     }
   };
 
   const shareConversation = async () => {
     if (!messages || messages.length === 0) return;
-
     const lines = messages.map((m) => {
       const prefix = m.role === "user" ? "Anda:" : "GuptaAI:";
       return `${prefix}\n${m.content}\n`;
     });
     const shareText = lines.join("\n----------------------\n");
     const title = "Percakapan dengan GuptaAI";
-
     if (navigator.share) {
       try {
         await navigator.share({ title, text: shareText });
       } catch (e) {
-        console.error("Share cancelled or failed", e);
+        console.error("share fail", e);
       }
     } else {
       try {
         await navigator.clipboard.writeText(shareText);
-        alert("Percakapan disalin ke clipboard, silakan tempel di mana saja.");
+        alert("Percakapan disalin ke clipboard.");
       } catch (e) {
-        console.error("Failed to copy conversation", e);
+        console.error("copy convo fail", e);
       }
     }
   };
 
-const handleFileChange = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const resetAttachment = () => {
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setAttachedFile(null);
+    setAttachedImageBase64(null);
+    setFilePreviewUrl(null);
+  };
 
-  const allowed = ["audio/", "application/pdf", "text/plain", "image/"];
+  // === FILE / IMAGE UPLOAD ===
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    resetAttachment();
 
-  const isValid = allowed.some(type => file.type.startsWith(type));
-  setFileStatus(isValid ? "valid" : "invalid");
-  setAttachedFile(file);
-};
+    if (file.type.startsWith("image/")) {
+      // gambar → untuk vision
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        const base64 = result.split(",")[1];
+        setAttachedImageBase64(base64);
+      };
+      reader.readAsDataURL(file);
+      const url = URL.createObjectURL(file);
+      setFilePreviewUrl(url);
+      setAttachedFile(file);
+    } else if (file.type.startsWith("audio/")) {
+      // audio → whisper
+      setAttachedFile(file);
+      setAttachedImageBase64(null);
+    } else {
+      alert("Hanya mendukung gambar atau audio.");
+    }
 
+    // reset accept kembali ke default
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = "image/*,audio/*";
+    }
+  };
 
+  // === SEND MESSAGE ===
   const sendMessage = async () => {
     if (loading) return;
 
     let text = content.trim();
+    const historyForApi = [...messages];
 
-    if (attachedFile && attachedType === "audio") {
+    // jika ada audio terlampir → transcribe dulu
+    if (attachedFile && attachedFile.type.startsWith("audio/")) {
       setLoading(true);
       try {
         const whisperModel =
           model === "whisper-large-v3-turbo" ? "whisper-large-v3-turbo" : "whisper-large-v3";
         const transcript = await transcribeAudioWithGroq(attachedFile, whisperModel);
-        const prefix = text ? `${text}\n\nTranskrip audio:\n${transcript}` : transcript;
-        text = prefix;
+        text = text ? `${text}\n\nTranskrip audio:\n${transcript}` : transcript;
       } catch (err) {
-        console.error("Error transcribe:", err);
-        const errMsg = {
-          role: "assistant",
-          content: "Maaf, terjadi kesalahan saat memproses audio.",
-          time: Date.now(),
-        };
-        setMessages((prev) => [...prev, errMsg]);
+        console.error("transcribe error:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Maaf, terjadi kesalahan saat memproses audio.",
+            time: Date.now(),
+          },
+        ]);
         setLoading(false);
-        clearAttachment();
+        resetAttachment();
         return;
       } finally {
-        clearAttachment();
+        resetAttachment();
       }
     }
 
-    if (attachedFile && attachedType === "file") {
-      const fileInfo = `\n\n[File terlampir: ${attachedFile.name} (${attachedFile.type || "unknown"})]`;
-      text = text ? text + fileInfo : fileInfo;
-      clearAttachment();
-    }
+    // jika tidak ada teks dan tidak ada image, jangan kirim
+    if (!text && !attachedImageBase64) return;
 
-    if (!text) return;
+    const userMsgContent = attachedImageBase64
+      ? text || "Jelaskan isi gambar ini secara singkat."
+      : text;
 
-    const userMsg = { role: "user", content: text, time: Date.now() };
+    const userMsg = {
+      role: "user",
+      content: userMsgContent,
+      time: Date.now(),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setContent("");
 
-    const cached = localAnswer(text);
-    if (cached) {
+    const cached = localAnswer(userMsgContent);
+    if (cached && !attachedImageBase64) {
       const aiMsg = { role: "assistant", content: cached, time: Date.now() };
       setMessages((prev) => [...prev, aiMsg]);
+      resetAttachment();
       return;
     }
 
     setLoading(true);
     try {
-      const historyForApi = [...messages, userMsg];
-      const ai = await requestToGroqAi(text, model, historyForApi);
+      const ai = await requestToGroqAi(
+        userMsgContent,
+        model,
+        historyForApi.concat(userMsg),
+        attachedImageBase64
+      );
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
-      setMessages((prev) => [...prev, aiMsg]);
+
+      // push ke messages DAN trigger efek mengetik
+      setMessages((prev) => {
+        const next = [...prev, aiMsg];
+        const index = next.length - 1;
+        setTypingMessageIndex(index);
+        setTypingContent("");
+        return next;
+      });
     } catch (err) {
-      console.error("Error Groq:", err);
-      const errMsg = {
-        role: "assistant",
-        content: "Maaf, terjadi kesalahan saat menghubungi GuptaAI.",
-        time: Date.now(),
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      console.error("Groq error:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Maaf, terjadi kesalahan saat menghubungi GuptaAI.",
+          time: Date.now(),
+        },
+      ]);
     } finally {
       setLoading(false);
+      resetAttachment();
     }
   };
 
@@ -377,78 +483,71 @@ const handleFileChange = (e) => {
     }
   };
 
+  // AUTH
   const handleLogout = () => {
     setUser(null);
     try {
       localStorage.removeItem("gupta_user");
     } catch (e) {
-      console.error("Failed to clear user from localStorage", e);
+      console.error("clear user fail", e);
     }
   };
 
-  // signup + login (API via fetch, ganti URL ke endpoint serverless kamu)
-const handleAuthSubmit = async (e) => {
-  e.preventDefault();
-  const form = e.target;
+  const handleAuthSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const rawName = form.elements.name ? form.elements.name.value : "";
+    const name = rawName ? rawName.trim() : "";
+    const email = (form.elements.email?.value || "").trim();
+    const password = (form.elements.password?.value || "").trim();
 
-  const rawName = form.name ? form.name.value : "";
-  const name = rawName ? rawName.trim() : "";
-
-  const email = (form.email?.value || "").trim();
-  const password = (form.password?.value || "").trim();
-
-  if (!email || !password || (loginMode === "signup" && !name)) {
-    alert("Lengkapi data terlebih dahulu");
-    return;
-  }
-
-  try {
-    const raw = localStorage.getItem("gupta_users") || "[]";
-    const users = JSON.parse(raw);
-
-    if (loginMode === "signup") {
-      const already = users.find((u) => u.email === email);
-      if (already) {
-        alert("Email sudah terdaftar");
-        return;
-      }
-      users.push({ name, email, password });
-      localStorage.setItem("gupta_users", JSON.stringify(users));
-    } else {
-      const user = users.find((u) => u.email === email && u.password === password);
-      if (!user) {
-        alert("Email atau password salah");
-        return;
-      }
+    if (!email || !password || (loginMode === "signup" && !name)) {
+      alert("Lengkapi data terlebih dahulu");
+      return;
     }
 
-    const finalUser =
-      loginMode === "signup"
-        ? { name, email }
-        : { name: users.find((u) => u.email === email).name, email };
+    try {
+      const raw = localStorage.getItem("gupta_users") || "[]";
+      const users = JSON.parse(raw);
 
-    setUser(finalUser);
-    localStorage.setItem("gupta_user", JSON.stringify(finalUser));
-    setShowLogin(false);
-  } catch (err) {
-    console.error("Auth error:", err);
-    alert("Gagal memproses data login di browser");
-  }
-};
+      if (loginMode === "signup") {
+        const already = users.find((u) => u.email === email);
+        if (already) {
+          alert("Email sudah terdaftar");
+          return;
+        }
+        users.push({ name, email, password });
+        localStorage.setItem("gupta_users", JSON.stringify(users));
+      } else {
+        const found = users.find((u) => u.email === email && u.password === password);
+        if (!found) {
+          alert("Email atau password salah");
+          return;
+        }
+      }
 
+      const finalUser =
+        loginMode === "signup"
+          ? { name, email }
+          : { name: users.find((u) => u.email === email).name, email };
 
+      setUser(finalUser);
+      localStorage.setItem("gupta_user", JSON.stringify(finalUser));
+      setShowLogin(false);
+    } catch (err) {
+      console.error("Auth error:", err);
+      alert("Gagal memproses data login di browser");
+    }
+  };
 
   const openHistory = () => {
     try {
       const key = storageKeyFor(user?.email);
       const stored = localStorage.getItem(key);
-      if (stored) {
-        setHistoryList(JSON.parse(stored));
-      } else {
-        setHistoryList([]);
-      }
+      if (stored) setHistoryList(JSON.parse(stored));
+      else setHistoryList([]);
     } catch (e) {
-      console.error("Failed to load history", e);
+      console.error("history fail", e);
       setHistoryList([]);
     }
     setShowHistory(true);
@@ -461,21 +560,60 @@ const handleAuthSubmit = async (e) => {
       localStorage.removeItem(key);
       setHistoryList([]);
       setMessages([]);
-
-      // kalau punya backend history, disini bisa panggil API DELETE
-      // fetch(`/api/history?email=${encodeURIComponent(email)}`, {
-      //   method: "DELETE",
-      // }).catch((err) => {
-      //   console.error("Failed to clear history in backend", err);
-      // });
     } catch (e) {
-      console.error("Failed to clear archived history", e);
+      console.error("clear history fail", e);
     }
+  };
+
+  // VOICE RECORD
+  const startRecording = async () => {
+    if (isRecording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      recordedChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], "recording.webm", { type: "audio/webm" });
+        setAttachedFile(file);
+        setAttachedImageBase64(null);
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+    } catch (err) {
+      console.error("mic fail:", err);
+      alert("Tidak dapat mengakses mikrofon.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (!isRecording || !mediaRecorderRef.current) return;
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
+  };
+
+  // UI helpers
+  const modeLabel = () => {
+    if (inputMode === "text") return "Text";
+    if (inputMode === "file") return "File";
+    if (inputMode === "voice") return "Voice";
+    return "";
   };
 
   return (
     <div className="h-screen bg-slate-100">
-      {/* LOGIN / SIGNUP MODAL */}
+      {/* LOGIN MODAL */}
       {showLogin && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white px-5 mx-6 rounded-2xl shadow-xl w-full max-w-sm p-6">
@@ -483,7 +621,7 @@ const handleAuthSubmit = async (e) => {
               {loginMode === "login" ? "Masuk ke GuptaAI" : "Daftar Akun GuptaAI"}
             </h2>
             <p className="text-xs text-slate-500 mb-4">
-              Data login disimpan di server melalui API dan di browser kamu.
+              Akun disimpan di browser (localStorage) dan bisa disambungkan ke backend nanti.
             </p>
 
             <div className="flex mb-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px]">
@@ -514,9 +652,7 @@ const handleAuthSubmit = async (e) => {
             <form onSubmit={handleAuthSubmit} className="space-y-3">
               {loginMode === "signup" && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Nama
-                  </label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Nama</label>
                   <input
                     name="name"
                     type="text"
@@ -527,9 +663,7 @@ const handleAuthSubmit = async (e) => {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Email
-                </label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
                 <input
                   name="email"
                   type="email"
@@ -539,9 +673,7 @@ const handleAuthSubmit = async (e) => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Password
-                </label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Password</label>
                 <input
                   name="password"
                   type="password"
@@ -621,11 +753,30 @@ const handleAuthSubmit = async (e) => {
         </div>
       )}
 
+      {/* TAB POPUP */}
+      {showTabPopup && (
+        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5">
+            <h2 className="text-sm font-semibold text-slate-900 mb-2">Selamat datang kembali</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              Kamu barusan kembali ke tab ini. Popup ini tidak akan muncul lagi setelah ditutup.
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={closeTabPopup}
+                className="px-3 py-1.5 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            
             <div className="relative">
               <div className="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-semibold shadow-sm">
                 G
@@ -647,7 +798,13 @@ const handleAuthSubmit = async (e) => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Icon bar untuk buka sidebar */}
+            <button
+              type="button"
+              onClick={shareConversation}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              <i className="bx bx-share-alt text-lg" />
+            </button>
             <button
               type="button"
               onClick={() => setShowSidebar(true)}
@@ -659,20 +816,20 @@ const handleAuthSubmit = async (e) => {
         </div>
       </header>
 
-      {/* RIGHT SIDEBAR / PANEL */}
+      {/* SIDEBAR */}
       {showSidebar && (
         <div className="fixed inset-0 z-40 flex justify-end">
           <div
             className="flex-1 bg-black/30 backdrop-blur-xs transition-opacity duration-300 ease-out opacity-100"
             onClick={() => setShowSidebar(false)}
           />
-            <aside
-    className={`
-      w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
-      transform transition-transform duration-300 ease-out
-      ${showSidebar ? "translate-x-0" : "translate-x-full"}
-    `}
-  >
+          <aside
+            className={`
+              w-80 max-w-full h-full bg-white shadow-xl border-l border-slate-200 flex flex-col
+              transform transition-transform duration-300 ease-out
+              ${showSidebar ? "translate-x-0" : "translate-x-full"}
+            `}
+          >
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900">GuptaAI</h2>
               <button
@@ -684,7 +841,7 @@ const handleAuthSubmit = async (e) => {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              {/* LOGIN / PROFILE SECTION */}
+              {/* AKUN */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Akun</h3>
                 {user ? (
@@ -743,83 +900,79 @@ const handleAuthSubmit = async (e) => {
                 )}
               </section>
 
-              {/* MODEL SECTION */}
+              {/* MODEL */}
               <section>
-  <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Model AI</h3>
+                <button
+                  type="button"
+                  onClick={() => setModelOpen((v) => !v)}
+                  className="
+                    w-full flex items-center justify-between rounded-xl border border-slate-200
+                    bg-white px-3 py-2 text-left text-xs text-slate-700
+                    hover:bg-slate-50 transition-colors
+                  "
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">
+                      {MODEL_OPTIONS.find((m) => m.value === model)?.label.charAt(0) ?? "M"}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {MODEL_OPTIONS.find((m) => m.value === model)?.label ?? "Pilih model"}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Klik untuk {modelOpen ? "menyembunyikan" : "mengganti"} model
+                      </span>
+                    </div>
+                  </div>
+                  <i
+                    className={`bx bx-chevron-down text-lg text-slate-500 transition-transform ${
+                      modelOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {modelOpen && (
+                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
+                    {MODEL_OPTIONS.map((m) => {
+                      const active = model === m.value;
+                      return (
+                        <button
+                          key={m.value}
+                          type="button"
+                          onClick={() => {
+                            setModel(m.value);
+                            localStorage.setItem("gupta_model", m.value);
+                            setModelOpen(false);
+                          }}
+                          className={`
+                            w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px]
+                            transition-all duration-150
+                            ${
+                              active
+                                ? "border-slate-900 bg-slate-900 text-white"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                            }
+                          `}
+                        >
+                          <span>{m.label}</span>
+                          {active && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              Aktif
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
-  {/* Header: hanya model aktif */}
-  <button
-    type="button"
-    onClick={() => setModelOpen((v) => !v)}
-    className="
-      w-full flex items-center justify-between rounded-xl border border-slate-200
-      bg-white px-3 py-2 text-left text-xs text-slate-700
-      hover:bg-slate-50 transition-colors
-    "
-  >
-    <div className="flex items-center gap-2">
-      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">
-        {MODEL_OPTIONS.find((m) => m.value === model)?.label.charAt(0) ?? "M"}
-      </span>
-      <div className="flex flex-col">
-        <span className="font-medium">
-          {MODEL_OPTIONS.find((m) => m.value === model)?.label ?? "Pilih model"}
-        </span>
-        <span className="text-[10px] text-slate-400">
-          Klik untuk {modelOpen ? "menyembunyikan" : "mengganti"} model
-        </span>
-      </div>
-    </div>
-    <i
-      className={`bx bx-chevron-down text-lg text-slate-500 transition-transform ${
-        modelOpen ? "rotate-180" : ""
-      }`}
-    />
-  </button>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Pilih model teks biasa atau model vision/audio sesuai kebutuhan.
+                </p>
+              </section>
 
-  {/* List pilihan: hanya muncul kalau modelOpen = true */}
-  {modelOpen && (
-    <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
-      {MODEL_OPTIONS.map((m) => {
-        const active = model === m.value;
-        return (
-          <button
-            key={m.value}
-            type="button"
-            onClick={() => {
-              setModel(m.value);
-              localStorage.setItem("gupta_model", m.value);
-              setModelOpen(false);
-            }}
-            className={`
-              w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px]
-              transition-all duration-150
-              ${
-                active
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-              }
-            `}
-          >
-            <span>{m.label}</span>
-            {active && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                Aktif
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  )}
-
-  <p className="mt-1 text-[11px] text-slate-400">
-    Pilih model AI yang ingin digunakan untuk percakapan.
-  </p>
-</section>
-
-              {/* HISTORY SECTION */}
+              {/* HISTORY */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Riwayat Chat</h3>
                 <div className="flex items-center gap-2">
@@ -837,8 +990,7 @@ const handleAuthSubmit = async (e) => {
                   </button>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Riwayat disimpan per email (atau guest) di localStorage. Tiap tab punya sesi
-                  sendiri, tapi archive tetap tersimpan.
+                  Riwayat disimpan per email (atau guest) di localStorage.
                 </p>
               </section>
             </div>
@@ -852,39 +1004,177 @@ const handleAuthSubmit = async (e) => {
         className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-3 py-3 sm:px-4"
       >
         <div className="mx-auto flex max-w-3xl items-end gap-2">
-          <div className="flex flex-col items-center gap-1">
-  <label
-    className={`inline-flex h-11 w-11 items-center justify-center rounded-full 
-      border bg-white text-slate-700 shadow-sm cursor-pointer 
-      ${fileStatus === "valid" ? "bg-green-500 text-white" : ""}
-      ${fileStatus === "invalid" ? "bg-red-500 text-white" : ""}
-      ${!fileStatus ? "border-slate-200 hover:bg-slate-50" : ""}
-    `}
-  >
-    <i className="bx bx-paperclip text-xl" />
-    <input
-      type="file"
-      accept="audio/*,application/pdf,text/plain,image/*"
-      className="hidden"
-      onChange={handleFileChange}
-    />
-  </label>
-</div>
+          {/* mode switch */}
+          <div className="flex items-center gap-1">
+            {/* ICON FILE DENGAN LONG PRESS */}
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                fileLongPressRef.current = setTimeout(() => {
+                  setFileMenuPos({
+                    x: rect.left + rect.width / 2,
+                    y: rect.top - 8,
+                  });
+                  setShowFileMenu(true);
+                }, 200); // 0.2s
+              }}
+              onMouseUp={() => {
+                if (fileLongPressRef.current) {
+                  clearTimeout(fileLongPressRef.current);
+                  fileLongPressRef.current = null;
+                  // klik singkat → buka file picker (default image+audio)
+                  if (!showFileMenu && fileInputRef.current) {
+                    fileInputRef.current.accept = "image/*,audio/*";
+                    fileInputRef.current.click();
+                  }
+                }
+              }}
+              onMouseLeave={() => {
+                if (fileLongPressRef.current) {
+                  clearTimeout(fileLongPressRef.current);
+                  fileLongPressRef.current = null;
+                }
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 text-lg"
+            >
+              <i className="bx bx-paperclip" />
+            </button>
 
+            {/* input file hidden */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,audio/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
 
-          <textarea
-            className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
-            placeholder="Tulis pertanyaanmu di sini..."
-            spellCheck="false"
-            rows={1}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
+            {/* tombol mic (voice terpisah) */}
+            {inputMode === "voice" && (
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-xs shadow-sm ${
+                  isRecording
+                    ? "bg-rose-600 border-rose-600 text-white animate-pulse"
+                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <i className={`bx ${isRecording ? "bx-stop" : "bx-microphone"} text-lg`} />
+              </button>
+            )}
+
+            {/* MENU FILE (fixed di atas tombol) */}
+            {showFileMenu && (
+              <div
+                className="fixed z-[9999] px-2 py-1 rounded-full bg-white border border-slate-200 shadow-sm flex items-center gap-1 text-xs text-slate-700"
+                style={{
+                  left: fileMenuPos.x,
+                  top: fileMenuPos.y,
+                  transform: "translate(-50%, -100%)",
+                }}
+                onMouseLeave={() => setShowFileMenu(false)}
+              >
+                {/* pilih gambar */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.accept = "image/*";
+                      fileInputRef.current.click();
+                      fileInputRef.current.accept = "image/*,audio/*";
+                    }
+                    setShowFileMenu(false);
+                  }}
+                  className="h-7 w-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-700"
+                >
+                  <i className="bx bx-image text-base" />
+                </button>
+
+                {/* pilih audio */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.accept = "audio/*";
+                      fileInputRef.current.click();
+                      fileInputRef.current.accept = "image/*,audio/*";
+                    }
+                    setShowFileMenu(false);
+                  }}
+                  className="h-7 w-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-700"
+                >
+                  <i className="bx bx-microphone text-base" />
+                </button>
+
+                {/* tutup */}
+                <button
+                  type="button"
+                  onClick={() => setShowFileMenu(false)}
+                  className="h-7 w-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-700"
+                >
+                  <i className="bx bx-x text-base" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 flex flex-col gap-1">
+            {/* preview image */}
+            {attachedFile && attachedFile.type.startsWith("image/") && filePreviewUrl && (
+              <div className="mb-1 rounded-xl border border-slate-200 bg-slate-50 p-2 flex items-start justify-between gap-2">
+                <div className="flex-1 text-xs text-slate-700">
+                  <img
+                    src={filePreviewUrl}
+                    alt="preview"
+                    className="max-h-32 rounded-lg object-contain bg-white"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={resetAttachment}
+                  className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                >
+                  <i className="bx bx-x text-sm" />
+                </button>
+              </div>
+            )}
+
+            {/* preview audio */}
+            {attachedFile && attachedFile.type.startsWith("audio/") && (
+              <div className="mb-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] text-emerald-700 flex items-center justify-between gap-2">
+                <span>Audio siap dikirim dan akan dikonversi menjadi teks.</span>
+                <button
+                  type="button"
+                  onClick={resetAttachment}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white border border-emerald-200 text-emerald-500 hover:bg-emerald-50"
+                >
+                  <i className="bx bx-x text-xs" />
+                </button>
+              </div>
+            )}
+
+            <textarea
+              className="flex-1 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 max-h-32 min-h-[44px]"
+              placeholder={
+                inputMode === "voice"
+                  ? "Klik mic untuk rekam, lalu kirim."
+                  : inputMode === "file"
+                  ? "Upload gambar/audio, lalu beri instruksi jika perlu..."
+                  : "Tulis pertanyaanmu di sini..."
+              }
+              spellCheck="false"
+              rows={1}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
 
           <button
             type="submit"
-            disabled={loading || (!content.trim() && !attachedFile)}
+            disabled={loading || (!content.trim() && !attachedFile && !attachedImageBase64)}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -913,18 +1203,18 @@ const handleAuthSubmit = async (e) => {
                     Mulai ngobrol dengan GuptaAI
                   </h1>
                   <p className="text-sm mb-4 max-w-md">
-                    Tulis pertanyaanmu di bawah, GuptaAI akan menjawab dalam bahasa Indonesia yang
-                    jelas dan mudah dipahami.
+                    Tulis pertanyaan, upload gambar, atau rekam suara. GuptaAI akan menjawab dalam
+                    bahasa Indonesia.
                   </p>
                   <div className="flex flex-wrap gap-2 justify-center text-xs text-slate-600 max-w-md">
                     <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
-                      ✨ Jelaskan konsep sulit dengan sederhana
+                      ✨ Jelasin isi gambar
                     </span>
                     <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
-                      💡 Cari ide konten & caption
+                      🎙️ Transkrip suara jadi teks
                     </span>
                     <span className="px-3 py-1 rounded-full bg-white border border-slate-200">
-                      🛠️ Bantu review & refactor kode
+                      💡 Tanya apa saja
                     </span>
                   </div>
                 </div>
@@ -932,6 +1222,9 @@ const handleAuthSubmit = async (e) => {
                 <div className="space-y-4">
                   {messages.map((msg, idx) => {
                     const isUser = msg.role === "user";
+                    const isTypingTarget = !isUser && idx === typingMessageIndex;
+                    const displayContent = isTypingTarget ? typingContent : msg.content;
+
                     return (
                       <div
                         key={idx}
@@ -956,11 +1249,11 @@ const handleAuthSubmit = async (e) => {
                               }`}
                             >
                               {isUser ? (
-                                msg.content
+                                displayContent
                               ) : (
                                 <div className="prose prose-slate prose-sm max-w-none">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {msg.content}
+                                    {displayContent}
                                   </ReactMarkdown>
                                 </div>
                               )}

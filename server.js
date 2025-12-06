@@ -1,153 +1,125 @@
 // server.js
 import express from "express";
-import fs from "fs";
-import path from "path";
-import bodyParser from "body-parser";
-import { fileURLToPath } from "url";
 import cors from "cors";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { createWorker } from "tesseract.js";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(bodyParser.json());
+const PORT = 4000;
+
+// CORS untuk frontend Vite
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    origin: "http://localhost:5173", // sesuaikan kalau port Vite beda
+    credentials: true,
   })
 );
 
-const DATA_DIR = path.join(__dirname, "dataLogin");
-const USERS_FILE = path.join(DATA_DIR, "users.json");
+// parse JSON body
+app.use(express.json());
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// folder sementara untuk upload
+const uploadFolder = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadFolder)) {
+  fs.mkdirSync(uploadFolder);
 }
-if (!fs.existsSync(USERS_FILE)) {
-  fs.writeFileSync(USERS_FILE, "[]", "utf-8");
-}
 
-const historyFileFor = (email) =>
-  path.join(
-    DATA_DIR,
-    `history_${(email || "guest").replace(/[^a-zA-Z0-9_.-]/g, "_")}.json`
-  );
+// multer config (simpan file sementara di ./uploads)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadFolder);
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
 
-const loadJson = (file, fallback) => {
-  try {
-    if (!fs.existsSync(file)) return fallback;
-    const raw = fs.readFileSync(file, "utf-8");
-    return JSON.parse(raw || "null") ?? fallback;
-  } catch {
-    return fallback;
+// worker Tesseract (OCR lokal)
+// catatan: ini bisa lumayan berat, jalan di backend saja
+let ocrWorker = null;
+const getWorker = async () => {
+  if (!ocrWorker) {
+    ocrWorker = await createWorker("eng+ind"); // english + indonesia
   }
+  return ocrWorker;
 };
 
-const saveJson = (file, data) => {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
-};
-
-/**
- * AUTH: signup & login sederhana (no hash, untuk demo lokal)
- * users.json: [{ name, email, password, firstLoginAt, lastLoginAt, totalSessions }]
- */
-
-// signup
-app.post("/api/signup", (req, res) => {
-  const { name, email, password } = req.body || {};
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: "name, email, password required" });
-  }
-
-  const users = loadJson(USERS_FILE, []);
-  const existing = users.find((u) => u.email === email);
-  if (existing) {
-    return res.status(400).json({ error: "email already registered" });
-  }
-
-  const now = new Date().toISOString();
-  users.push({
-    name,
-    email,
-    password, // untuk produksi harus di-hash!
-    firstLoginAt: now,
-    lastLoginAt: now,
-    totalSessions: 1,
-  });
-
-  saveJson(USERS_FILE, users);
-  res.json({ ok: true, user: { name, email } });
-});
-
-// login
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password required" });
-  }
-
-  const users = loadJson(USERS_FILE, []);
-  const idx = users.findIndex((u) => u.email === email);
-  if (idx === -1) {
-    return res.status(404).json({ error: "user not found" });
-  }
-  const user = users[idx];
-  if (user.password !== password) {
-    return res.status(401).json({ error: "invalid password" });
-  }
-
-  const now = new Date().toISOString();
-  users[idx] = {
-    ...user,
-    lastLoginAt: now,
-    totalSessions: (user.totalSessions || 0) + 1,
-  };
-  saveJson(USERS_FILE, users);
-
-  res.json({ ok: true, user: { name: user.name, email: user.email } });
-});
-
-// daftar user (opsional)
-app.get("/api/users", (req, res) => {
-  const users = loadJson(USERS_FILE, []);
-  // jangan kirim password ke frontend
-  res.json(users.map(({ password, ...rest }) => rest));
-});
-
-// simpan riwayat
-app.post("/api/history", (req, res) => {
-  const { email, messages } = req.body || {};
-  if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: "messages array required" });
-  }
-  const file = historyFileFor(email);
-  saveJson(file, messages);
-  res.json({ ok: true });
-});
-
-// ambil riwayat
-app.get("/api/history", (req, res) => {
-  const email = req.query.email || "guest";
-  const file = historyFileFor(email);
-  const messages = loadJson(file, []);
-  res.json(messages);
-});
-
-// hapus riwayat (reset file jadi [])
-app.delete("/api/history", (req, res) => {
-  const email = req.query.email || "guest";
-  const file = historyFileFor(email);
-  saveJson(file, []);
-  res.json({ ok: true });
-});
-
-// ping test
+// health check
 app.get("/api/ping", (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = process.env.PORT || 4000;
+// === ENDPOINT OCR: terima gambar, balikan teks ===
+app.post("/api/ocr", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "file tidak ditemukan" });
+    }
+
+    const worker = await getWorker();
+    const imagePath = req.file.path;
+
+    const result = await worker.recognize(imagePath);
+    const text = result.data.text || "";
+
+    // hapus file sementara
+    fs.unlink(imagePath, () => {});
+
+    return res.json({ text });
+  } catch (err) {
+    console.error("OCR error:", err);
+    return res.status(500).json({ error: "gagal OCR" });
+  }
+});
+
+// === ENDPOINT OCR-LOG: simpan teks hasil OCR (opsional) ===
+app.post("/api/ocr-log", (req, res) => {
+  try {
+    const { email, text, time } = req.body || {};
+    if (!text) {
+      return res.status(400).json({ error: "text wajib diisi" });
+    }
+
+    const logFolder = path.join(__dirname, "dataLogin");
+    if (!fs.existsSync(logFolder)) {
+      fs.mkdirSync(logFolder);
+    }
+
+    const logFile = path.join(logFolder, "ocr-log.json");
+    let data = [];
+    if (fs.existsSync(logFile)) {
+      const raw = fs.readFileSync(logFile, "utf-8");
+      data = raw ? JSON.parse(raw) : [];
+    }
+
+    data.push({
+      email: email || "guest",
+      text,
+      time: time || Date.now(),
+    });
+
+    fs.writeFileSync(logFile, JSON.stringify(data, null, 2), "utf-8");
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("OCR log error:", err);
+    return res.status(500).json({ error: "gagal simpan log" });
+  }
+});
+
+// TODO: di sini kamu bisa gabungkan endpoint lain, misal:
+// - /api/login
+// - /api/signup
+// - /api/history
+// sesuai server.js yang dulu sudah kamu pakai.
+
 app.listen(PORT, () => {
-  console.log("Server listening on", PORT);
+  console.log(`Server listening on http://localhost:${PORT}`);
 });
