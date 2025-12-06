@@ -86,45 +86,20 @@ const requestToGroqAi = async (content, model, history, imageBase64) => {
 const localAnswer = (text) => {
   const lower = text.toLowerCase();
   if (lower.includes("gede valendra")) {
-    return {
-      text:
-        "## Gede Valendra\n\n" +
-        "**Gede Valendra** adalah founder **GuptaAI** dan **JejasataLampung**.\n\n" +
-        "Untuk informasi lebih lanjut, kunjungi situs resmi **Avardhra Group**: " +
-        "[avardhra.my.id](https://www.avardhra.my.id).",
-      needExtraInfo: true,
-      target: "gede_valendra",
-    };
-  } else if (lower.includes("nivalesha")) {
-    return {
-      text:
-        "## Nivalesha\n\n" +
-        "Halo sayang ✨ **Nivalesha** adalah gabungan nama dari **Niken** dan **Valendra**.\n\n" +
-        "Perjalanan kami dimulai pada **9 November 2024** di **ITERA**, sebuah cerita penuh makna " +
-        "yang terukir indah di hati dan terus tumbuh setiap harinya. 💚",
-      needExtraInfo: true,
-      target: "nivalesha",
-    };
-  } else if (
-    lower.includes("frichintia niken gita natasyah") ||
-    lower.includes("frichintia") ||
-    lower.includes("niken gita") ||
-    lower.includes("gita natasyah") ||
-    lower.includes("niken") ||
-    lower.includes("gita") ||
-    lower.includes("natasyah")
-  ) {
-    return {
-      text:
-        "## Frichintia Niken Gita Natasyah\n\n" +
-        "**Frichintia Niken Gita Natasyah** adalah kekasih dari **Gede Valendra**. 💕\n\n" +
-        "Sosok spesial yang menginspirasi lahirnya kisah **Nivalesha** dan menjadi alasan " +
-        "banyak momen berharga yang tersimpan rapi di hati.",
-      needExtraInfo: true,
-      target: "frichintia_niken_gita_natasyah",
-    };
+    return (
+      "Gede Valendra adalah founder GuptaAI dan JejasataLampung. " +
+      "Untuk informasi lebih lanjut, kunjungi situs resmi Avardhra Group: https://www.avardhra.my.id"
+    );
+  }else if (lower.includes("nivalesha")) {
+    return (
+      "Hallo sayang, Nivalesha adalah gabungan nama dari Niken dan Valendra. " +
+      "Perjalanan kami dimulai dari 9 November 2024 tepatnya di ITERA, cerita penuh makna untuk rasa yang terukir indah di hati.  "
+    );
+  }else if (lower.includes("Frihcintia Niken Gita Natasyah")) {
+    return (
+      "Frichintia Niken Gita Natasyah adalah pacar dari Gede Valendra " 
+    );
   }
-
   return null;
 };
 
@@ -1390,10 +1365,8 @@ function App() {
                                 displayContent
                               ) : (
                                 <div className="prose prose-slate prose-sm max-w-none markdown-body">
-                                  
                                   <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
-                                    
                                     components={{
                                       pre({ children }) {
                                         return <>{children}</>;
@@ -1418,8 +1391,8 @@ function App() {
                                             <div className="code-block-header">
                                               <div className="flex gap-3">
                                                 <span className="code-block-title-red"></span>
-                                                <span className="code-block-title-yellow"></span>
-                                                <span className="code-block-title-green"></span>
+                                              <span className="code-block-title-yellow"></span>
+                                              <span className="code-block-title-green"></span>
                                               </div>
 
                                               {/* Tombol copy SELALU tampil */}
