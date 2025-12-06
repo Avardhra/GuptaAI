@@ -104,7 +104,7 @@ const localAnswer = (text) => {
     return (
       "## Nivalesha\n\n" +
       "Halo sayang ✨ **Nivalesha** adalah gabungan nama dari **Niken** dan **Valendra**.\n\n" +
-      "Perjalanan kami dimulai pada **9 November 2024** di **ITERA**, sebuah cerita penuh makna " +
+      "Perjalanan kami dimulai pada **9 September 2024** di **ITERA**, sebuah cerita penuh makna " +
       "yang terukir indah di hati dan terus tumbuh setiap harinya. 💚"
     );
   } else if (
