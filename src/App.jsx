@@ -314,7 +314,7 @@ function App() {
         clearInterval(interval);
         setTypingMessageIndex(null);
       }
-    }, 15);
+    }, 4);
 
     return () => clearInterval(interval);
   }, [typingMessageIndex, messages]);
@@ -1254,11 +1254,71 @@ function App() {
                               {isUser ? (
                                 displayContent
                               ) : (
-                                <div className="prose prose-slate prose-sm max-w-none markdown-body">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {displayContent}
-                                  </ReactMarkdown>
-                                </div>
+                                // ... import dan kode lain tetap
+
+<div className="prose prose-slate prose-sm max-w-none markdown-body">
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      pre({ node, ...props }) {
+        return (
+          <div className="code-block">
+            <div className="code-block-header">
+              <span className="code-block-title">
+                Kode
+              </span>
+              <button
+                type="button"
+                className="code-block-copy"
+                onClick={() => {
+                  try {
+                    const raw =
+                      props.children &&
+                      props.children[0] &&
+                      props.children[0].props &&
+                      props.children[0].props.children &&
+                      props.children[0].props.children[0];
+
+                    const text = raw ? String(raw) : "";
+                    if (!text) return;
+
+                    navigator.clipboard.writeText(text).catch(() => {});
+                  } catch (e) {
+                    console.error("copy code fail", e);
+                  }
+                }}
+              >
+                Salin kode
+              </button>
+            </div>
+            <pre {...props} />
+          </div>
+        );
+      },
+      code({ inline, className, children, ...props }) {
+        if (inline) {
+          return (
+            <code className={`inline-code ${className || ""}`} {...props}>
+              {children}
+            </code>
+          );
+        }
+
+        return (
+          <code
+            className={`block-code ${className || ""}`}
+            {...props}
+          >
+            {String(children).replace(/\n$/, "")}
+          </code>
+        );
+      },
+    }}
+  >
+    {displayContent}
+  </ReactMarkdown>
+</div>
+
                               )}
                             </div>
                             {!isUser && (
