@@ -16,34 +16,10 @@ const groq = new Groq({
 
 const MODEL_OPTIONS = [
   // Chat umum
-  { value: "gemini-3-pro-preview", label: "Gemini-3 Pro"},
-  { value: "llama-3.3-70b-versatile", label: "Pintar (Llama 3.3 70B)" },
-  { value: "openai/gpt-oss-20b", label: "GPT Ringan" },
-  { value: "openai/gpt-oss-120b", label: "GPT Pro" },
-
-  // Mode aman / filter
-  { value: "openai/gpt-oss-safeguard-20b", label: "GPT Aman (dengan filter)" },
-  { value: "meta-llama/llama-guard-4-12b", label: "Llama Guard (keamanan)" },
-
-  // Prompt guard
-  { value: "meta-llama/llama-prompt-guard-2-2b", label: "Prompt Guard 2B" },
-  { value: "meta-llama/llama-prompt-guard-2-8b", label: "Prompt Guard 8B" },
-
-  // Model lain
-  { value: "meta-llama/llama-4-maverick-17b-128k", label: "Llama 4 Maverick" },
-  {
-    value: "meta-llama/llama-4-scout-17b-16e-instruct",
-    label: "Llama 4 Scout",
-  },
-  { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2" },
-  { value: "moonshotai/kimi-k2-instruct-0905", label: "Kimi K2 (baru)" },
-
-  // Audio
-  { value: "whisper-large-v3", label: "Transkrip Suara" },
-  { value: "whisper-large-v3-turbo", label: "Transkrip Suara (Cepat)" },
+  { value: "gemini-3-pro-preview", label: "Gemini-3 Pro"}
 ];
 
-const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
+const FALLBACK_TEXT_MODEL = "gemini-3-pro-preview";
 
 // ==== UTIL GROQ ====
 
