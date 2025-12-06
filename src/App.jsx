@@ -48,7 +48,9 @@ const FALLBACK_TEXT_MODEL = "llama-3.3-70b-versatile";
 // ==== UTIL GROQ ====
 
 // chat text / vision
-const requestToGroqAi = async (content, model, history, imageBase64) => {
+// chat text / vision
+const requestToGroqAi = async (content, model, history, imageBase64, personaKey = "default") => {
+
   const safeModel = model.startsWith("whisper-") ? FALLBACK_TEXT_MODEL : model;
 
   const cleanedHistory = (history || []).map((m) => ({
@@ -56,7 +58,6 @@ const requestToGroqAi = async (content, model, history, imageBase64) => {
     content: m.content,
   }));
 
-  // kalau ada imageBase64, kita embed sebagai teks tambahan di prompt
   let finalContent = content;
   if (imageBase64) {
     const note =
@@ -65,10 +66,12 @@ const requestToGroqAi = async (content, model, history, imageBase64) => {
     finalContent = content ? content + note : note;
   }
 
+  const persona = kepribadian[personaKey] || kepribadian.default;
+
   const messages = [
     {
       role: "system",
-      content: kepribadian.systemPrompt,
+      content: persona.systemPrompt,
     },
     ...cleanedHistory,
     { role: "user", content: finalContent },
@@ -82,42 +85,43 @@ const requestToGroqAi = async (content, model, history, imageBase64) => {
   return reply.choices[0].message.content || "";
 };
 
+
 // jawaban lokal
 const localAnswer = (text) => {
   const lower = text.toLowerCase();
-if (
-  lower.includes("gede valendra" ||
-    lower.includes("valendra")
-  )) {
-  return (
-    "## Gede Valendra\n\n" +
-    "**Gede Valendra** adalah founder **GuptaAI** dan **JejasataLampung**.\n\n" +
-    "Untuk informasi lebih lanjut, kunjungi situs resmi **Avardhra Group**: " +
-    "[avardhra.my.id](https://www.avardhra.my.id)"
-  );
-} else if (lower.includes("nivalesha")) {
-  return (
-    "## Nivalesha\n\n" +
-    "Halo sayang ✨ **Nivalesha** adalah gabungan nama dari **Niken** dan **Valendra**.\n\n" +
-    "Perjalanan kami dimulai pada **9 November 2024** di **ITERA**, sebuah cerita penuh makna " +
-    "yang terukir indah di hati dan terus tumbuh setiap harinya. 💚"
-  );
-} else if (
-  lower.includes("frichintia niken gita natasyah") ||
-  lower.includes("frichintia") ||
-  lower.includes("niken gita") ||
-  lower.includes("gita natasyah") ||
-  lower.includes("niken") ||
-  lower.includes("gita") ||
-  lower.includes("natasyah")
-) {
-  return (
-    "## Frichintia Niken Gita Natasyah\n\n" +
-    "**Frichintia Niken Gita Natasyah** adalah kekasih dari **Gede Valendra**. 💕\n\n" +
-    "Sosok spesial yang menginspirasi lahirnya kisah **Nivalesha** dan menjadi alasan " +
-    "banyak momen berharga yang tersimpan rapi di hati."
-  );
-}
+  if (
+    lower.includes("gede valendra" ||
+      lower.includes("valendra")
+    )) {
+    return (
+      "## Gede Valendra\n\n" +
+      "**Gede Valendra** adalah founder **GuptaAI** dan **JejasataLampung**.\n\n" +
+      "Untuk informasi lebih lanjut, kunjungi situs resmi **Avardhra Group**: " +
+      "[avardhra.my.id](https://www.avardhra.my.id)"
+    );
+  } else if (lower.includes("nivalesha")) {
+    return (
+      "## Nivalesha\n\n" +
+      "Halo sayang ✨ **Nivalesha** adalah gabungan nama dari **Niken** dan **Valendra**.\n\n" +
+      "Perjalanan kami dimulai pada **9 November 2024** di **ITERA**, sebuah cerita penuh makna " +
+      "yang terukir indah di hati dan terus tumbuh setiap harinya. 💚"
+    );
+  } else if (
+    lower.includes("frichintia niken gita natasyah") ||
+    lower.includes("frichintia") ||
+    lower.includes("niken gita") ||
+    lower.includes("gita natasyah") ||
+    lower.includes("niken") ||
+    lower.includes("gita") ||
+    lower.includes("natasyah")
+  ) {
+    return (
+      "## Frichintia Niken Gita Natasyah\n\n" +
+      "**Frichintia Niken Gita Natasyah** adalah kekasih dari **Gede Valendra**. 💕\n\n" +
+      "Sosok spesial yang menginspirasi lahirnya kisah **Nivalesha** dan menjadi alasan " +
+      "banyak momen berharga yang tersimpan rapi di hati."
+    );
+  }
 
   return null;
 };
@@ -146,6 +150,12 @@ const transcribeAudioWithGroq = async (
 
 // ==== APP ====
 function App() {
+  // kepribadian
+  // model
+  const [model, setModel] = useState(MODEL_OPTIONS[0].value);
+  const [modelOpen, setModelOpen] = useState(false);
+  // persona / kepribadian
+  const [personaKey, setPersonaKey] = useState("default");
   // auth
   const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -153,11 +163,6 @@ function App() {
 
   // sidebar
   const [showSidebar, setShowSidebar] = useState(false);
-
-  // model
-  const [model, setModel] = useState(MODEL_OPTIONS[0].value);
-  const [modelOpen, setModelOpen] = useState(false);
-
   // chat
   const [messages, setMessages] = useState([]);
   const [content, setContent] = useState("");
@@ -257,6 +262,21 @@ function App() {
     setShowTabPopup(false);
     localStorage.setItem("gupta_tab_popup_dismissed", "1");
   };
+
+
+  // INIT PERSONA
+  useEffect(() => {
+    try {
+      const storedPersona = localStorage.getItem("gupta_persona");
+      if (storedPersona) {
+        setPersonaKey(storedPersona);
+      }
+    } catch (e) {
+      console.error("Failed load persona", e);
+    }
+  }, []);
+
+
 
   // LOAD MSG
   useEffect(() => {
@@ -532,9 +552,14 @@ function App() {
     setMessages((prev) => [...prev, userMsg]);
     setContent("");
 
+    // Jawaban lokal (nama-nama khusus)
     const cached = localAnswer(userMsgContent);
     if (cached && !attachedImageBase64) {
-      const aiMsg = { role: "assistant", content: cached, time: Date.now() };
+      const aiMsg = {
+        role: "assistant",
+        content: cached.text, // <- ambil string markdown-nya
+        time: Date.now(),
+      };
       setMessages((prev) => [...prev, aiMsg]);
       resetAttachment();
       return;
@@ -546,7 +571,8 @@ function App() {
         userMsgContent,
         model,
         historyForApi.concat(userMsg),
-        attachedImageBase64
+        attachedImageBase64,
+        personaKey          // <- kirim persona yang aktif
       );
       const aiMsg = { role: "assistant", content: ai, time: Date.now() };
       setMessages((prev) => {
@@ -571,6 +597,7 @@ function App() {
       resetAttachment();
     }
   };
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1032,6 +1059,53 @@ function App() {
                 )}
               </section>
 
+
+
+              {/* PERSONA / KEPRIBADIAN */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">
+                  Kepribadian AI
+                </h3>
+                <div className="space-y-1">
+                  {Object.entries(kepribadian).map(([key, value]) => {
+                    const active = personaKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setPersonaKey(key);
+                          try {
+                            localStorage.setItem("gupta_persona", key);
+                          } catch (e) {
+                            console.error("save persona fail", e);
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between rounded-lg border px-3 py-1.5 text-left text-[11px] transition-all ${active
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                      >
+                        <span>{value.label}</span>
+                        {active && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                            Aktif
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Ganti gaya bahasa dan cara jawab AI tanpa mengubah kode.
+                </p>
+              </section>
+
+
+
+
               {/* MODEL */}
               <section>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">
@@ -1410,8 +1484,8 @@ function App() {
                                             <div className="code-block-header">
                                               <div className="flex gap-3">
                                                 <span className="code-block-title-red"></span>
-                                              <span className="code-block-title-yellow"></span>
-                                              <span className="code-block-title-green"></span>
+                                                <span className="code-block-title-yellow"></span>
+                                                <span className="code-block-title-green"></span>
                                               </div>
 
                                               {/* Tombol copy SELALU tampil */}
